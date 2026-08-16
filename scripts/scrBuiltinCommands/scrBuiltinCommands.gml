@@ -20,7 +20,8 @@ global.BUILTIN_COMMANDS = [
     CommandPurge,
     CommandFix,
     CommandDuplicate,
-    CommandDeduplicate
+    CommandDeduplicate,
+    CommandThemeCustom
 ]
 
 function CommandWidth():CommandSignature("width", ["w", "wid"]) constructor {
@@ -567,6 +568,44 @@ function CommandDeduplicate():CommandSignature("deduplicate", ["dedup"]) constru
         var removedCount = editor_deduplicate_notes(noteProps);
 
         console_echo($"Removed {string(removedCount)} duplicate notes from the chart.");
+    }
+}
+
+function CommandThemeCustom():CommandSignature("themecustom", ["theme_custom", "themecolor", "customcolor"]) constructor {
+    add_variant(0, 0, "Prints the current custom theme colour.");
+    add_variant(1, 0, "Sets the custom theme colour to a 6-digit RRGGBB hex value, e.g. themecustom ff00ff.");
+
+    static execute = function(args, matchedVariant) {
+        if(array_length(args) == 0) {
+            var _col = global.themeColorCustom;
+            console_echo($"Custom theme colour: R{string(colour_get_red(_col))} G{string(colour_get_green(_col))} B{string(colour_get_blue(_col))}.");
+            return;
+        }
+
+        var _hex = string_lower(string_trim(args[0]));
+        if(string_copy(_hex, 1, 2) == "0x")
+            _hex = string_copy(_hex, 3, string_length(_hex) - 2);
+        else if(string_char_at(_hex, 1) == "#")
+            _hex = string_copy(_hex, 2, string_length(_hex) - 1);
+
+        if(string_length(_hex) != 6)
+            throw "Colour must be a 6-digit RRGGBB hex value.";
+
+        var _hex_digit = function(_ch) {
+            var _o = ord(_ch);
+            if(_o >= 48 && _o <= 57) return _o - 48;    // 0-9
+            if(_o >= 97 && _o <= 102) return _o - 87;   // a-f
+            return -1;
+        }
+        var _r = _hex_digit(string_char_at(_hex, 1)) * 16 + _hex_digit(string_char_at(_hex, 2));
+        var _g = _hex_digit(string_char_at(_hex, 3)) * 16 + _hex_digit(string_char_at(_hex, 4));
+        var _b = _hex_digit(string_char_at(_hex, 5)) * 16 + _hex_digit(string_char_at(_hex, 6));
+        if(_r < 0 || _g < 0 || _b < 0)
+            throw "Colour must contain only hexadecimal digits.";
+
+        theme_custom_set_color(make_colour_rgb(_r, _g, _b));
+        save_config();
+        console_echo($"Custom theme colour set to R{string(_r)} G{string(_g)} B{string(_b)}.");
     }
 }
 

@@ -33,8 +33,15 @@ if(keycheck_down(vk_tab)) {
             }
         );
         _inst.set_wh(layoutBar.w / 2,layoutBar.h + 10);
+        _inst = new BarColorChannel("custom_r", _nw - layout.padding - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "R");
+        _inst.set_wh(layoutBar.w, layoutBar.h);
+        _inst = new BarColorChannel("custom_g", _nw - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "G");
+        _inst.set_wh(layoutBar.w, layoutBar.h);
+        _inst = new BarColorChannel("custom_b", _nw + layout.padding - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "B");
+        _inst.set_wh(layoutBar.w, layoutBar.h);
     }
     else {
+        save_config();
         gui_manager_destroy();
     }
     

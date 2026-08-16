@@ -953,6 +953,7 @@ function theme_init() {
 	
 	global.themes = [];
 	global.themeAt = 0;
+	global.themeColorCustom = make_colour_rgb(255, 214, 0); // Custom theme colour (BGR int), default gold.
 	
 	/// Theme Configuration
 	
@@ -989,6 +990,17 @@ function theme_init() {
 		partBlend: false
 	});
 	
+	array_push(global.themes, {
+		title: "[c_custom]Custom[/c]",
+		color: global.themeColorCustom,
+		partSpr: sprParticleW,		// Particle Sprite
+		partColA: global.themeColorCustom, 		// Note's Particle Color
+		partColB: global.themeColorCustom,
+		partColHA: c_white,		// Hold's Particle Color
+		partColHB: c_white,
+		partBlend: false
+	});
+	
 	/// End of Configuration
 	
 	global.themeCount = array_length(global.themes);
@@ -1002,6 +1014,9 @@ function theme_next() {
 	if(instance_exists(objMain))
 		objMain.themeColor = global.themes[global.themeAt].color;
 	
+	if(global.themeAt == 3)
+		scribble_color_set("c_custom", global.themeColorCustom);
+	
 	announcement_play(i18n_get("anno_switch_theme_to") + " [[" + global.themes[global.themeAt].title + "]", 1000);
 }
 
@@ -1013,6 +1028,26 @@ function theme_get() {
 function theme_get_color_hsv() {
 	var col = global.themes[global.themeAt].color;
 	return color_rgb_to_hsv(col);
+}
+
+/// Syncs the custom theme entry and the active view with global.themeColorCustom.
+function theme_custom_apply() {
+	if(array_length(global.themes) < 4) return;
+	
+	var _custom = global.themes[3];
+	_custom.color = global.themeColorCustom;
+	_custom.partColA = global.themeColorCustom;
+	_custom.partColB = global.themeColorCustom;
+	
+	if(global.themeAt == 3 && instance_exists(objMain))
+		objMain.themeColor = global.themeColorCustom;
+}
+
+/// @param {Real} col GML colour integer (BGR, 24-bit).
+function theme_custom_set_color(col) {
+	if(!is_real(col) || col < 0 || col > 0xFFFFFF) return;
+	global.themeColorCustom = col;
+	theme_custom_apply();
 }
 
 #endregion
@@ -1120,6 +1155,10 @@ function load_config() {
 	}
 	
 	_check_set(_con, "theme", "themeAt");
+	_check_set(_con, "themeColorCustom");
+	if(!is_real(global.themeColorCustom) || global.themeColorCustom < 0 || global.themeColorCustom > 0xFFFFFF)
+		global.themeColorCustom = make_colour_rgb(255, 214, 0);
+	theme_custom_apply();
 	_check_set(_con, "FPS", "fps");
 	_check_set(_con, "autosave");
 	_check_set(_con, "autoupdate");
@@ -1170,6 +1209,7 @@ function save_config() {
 	
 	fast_file_save(get_config_path(), SnapToJSON({
 		theme: global.themeAt,
+		themeColorCustom: global.themeColorCustom,
 		FPS: global.fps,
 		version: VERSION,
 		autosave: global.autosave,
