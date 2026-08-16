@@ -327,6 +327,7 @@ function __SnapBufferReadQMLString(_buffer, _instanceofDict, _relaxed, _bufferSi
                     if (!script_exists(_constructor))
                     {
                         show_error("SNAP:\nStruct class name \"" + string(_result) + "\" has script index " + string(_constructor) + " but this script doesn't exist\n ", true);
+                        exit;
                     }
                     
                     _result = __SnapBufferReadQMLStruct(_buffer, _instanceofDict, _relaxed, _bufferSize, new _constructor());

@@ -194,7 +194,7 @@ function GUIElement() constructor {
     }
     static listen = function() { }
     
-    custom_action = function() { }
+    custom_action = function(_val = undefined) { return _val; }
 
     // Draw
     static draw = function() {
