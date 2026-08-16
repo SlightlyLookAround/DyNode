@@ -102,3 +102,6 @@ runtimes/
 
 .env
 .roo
+
+.zcode/
+.mimosa/
