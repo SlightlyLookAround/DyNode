@@ -734,33 +734,33 @@ image_yscale = 1;
                 }
             }
             
-            if((keycheck_down(vk_delete) || keycheck_down(vk_backspace)) && noteType != 3) {
+            if(bind_down("editor_note_delete") && noteType != 3) {
             	note_delete(noteID, true);
             }
-                
-            
-            if(keycheck_down(ord("T")) && editor_select_count() == 1) {
+
+
+            if(bind_down("editor_note_timing_point") && editor_select_count() == 1) {
             	timing_point_duplicate(time);
 		    }
-		    if(keycheck_down_ctrl(vk_delete)) {
+		    if(bind_down("editor_note_timing_point_delete")) {
 		    	timing_point_delete_at(time, true);
 		    }
-		    if(keycheck_down_ctrl(ord("C")) && !editor_select_is_multiple()) {
+		    if(bind_down("editor_note_width_copy") && !editor_select_is_multiple()) {
 		    	editor_set_default_width(width);
 		    	announcement_play(i18n_get("copy_width", string_format(width, 1, 2)));
 		    }
-		    
+
 		    // If double click then send attach request.
 		    if(mouse_isclick_double(0) && _mouse_inbound_check(2) && editor_editside_allowed(side)) {
                 if(noteType <= 2)
 		    	    objEditor.attach(id);
                 else
-                    objEditor.attach(finst);
+		    	    objEditor.attach(finst);
 		    }
-		    
+
 		    // Pos / Time Adjustment
-		    var _poschg = (keycheck_down_ctrl(vk_right) - keycheck_down_ctrl(vk_left)) * (shift_ishold() ? 0.05: 0.01);
-		    var _timechg = (keycheck_down_ctrl(vk_up) - keycheck_down_ctrl(vk_down)) * (shift_ishold() ? 5: 1);
+		    var _poschg = bind_axis("editor_note_nudge_pos") * 0.01 + bind_axis("editor_note_nudge_pos_fine") * 0.05;
+		    var _timechg = bind_axis("editor_note_nudge_time") + bind_axis("editor_note_nudge_time_fine") * 5;
 		    
 		    if(_timechg != 0 || _poschg != 0)
                 origProp = get_prop();

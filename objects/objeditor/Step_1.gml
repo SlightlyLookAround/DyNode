@@ -64,67 +64,75 @@ editorSelectMultiple = editorSelectCount > 1;
 
     var _attach_reset_request = false, _attach_sync_request = false;
     
-    if(keycheck_down(ord("Z"))) {
+    if(bind_down("editor_toggle_grid_y")) {
         editorGridYEnabled = !editorGridYEnabled;
         announcement_adjust("adjust_grid_y", editorGridYEnabled);
     }
-        
-    if(keycheck_down(ord("X"))) {
+
+    if(bind_down("editor_toggle_grid_x")) {
         editorGridXEnabled = !editorGridXEnabled;
         announcement_adjust("adjust_grid_x", editorGridXEnabled);
     }
-        
-    if(keycheck_down(ord("H"))) {
+
+    if(bind_down("editor_toggle_highlight")) {
         editorHighlightLineEnabled = !editorHighlightLineEnabled;
         announcement_adjust("adjust_highlight", editorHighlightLineEnabled);
     }
-    
-    if(keycheck_down(ord("Y"))) {
+
+    if(bind_down("editor_timing_point_create")) {
         timing_point_create(true);
     }
-    
-    if(keycheck_down_ctrl(ord("Z"))) {
+
+    if(bind_down("editor_undo")) {
         operation_undo();
     }
-    else if(keycheck_down_ctrl(ord("Y"))) {
+    else if(bind_down("editor_redo")) {
         operation_redo();
     }
     operation_synctime_sync();
-    
-    if(keycheck_down(ord("L"))) {
+
+    if(bind_down("editor_default_width_mode")) {
     	editorDefaultWidthMode ++;
     	editorDefaultWidthMode %= 4;
     	announcement_set("default_width_mode", editorDefaultWidthModeName[editorDefaultWidthMode]);
     	_attach_reset_request = true;
     }
-    if(keycheck_down(ord("K"))) {
+    if(bind_down("editor_default_width_set")) {
     	_attach_sync_request = editor_set_default_width_qbox();
     }
-    
-    if(keycheck_down(ord("J"))) {
+
+    if(bind_down("editor_beatline_style")) {
     	beatlineStyleCurrent ++;
     	beatlineStyleCurrent %= BEATLINE_STYLES_COUNT;
     	global.beatlineStyle = beatlineStyleCurrent;
     	announcement_set("beatline_style", beatlineStylesName[beatlineStyleCurrent]);
     }
-    
-    if(keycheck_down(ord("0")) || keycheck_down(vk_numpad0))
+
+    if(bind_down("editor_advanced_expr"))
     	advanced_expr();
-    
-    if(keycheck_down(ord("B"))) {
+
+    if(bind_down("editor_multi_side_binding")) {
         editorSelectMultiSidesBinding = !editorSelectMultiSidesBinding;
         announcement_adjust("multiple_sides_selection_property_binding", editorSelectMultiSidesBinding);
     }
 
-    if(keycheck_down_ctrl(ord("A"))) {
+    if(bind_down("editor_select_all")) {
         editor_select_all();
         global.__InputManager._ioclear();
     }
-    
+
+    // Alternate undo / redo bindings (Dynamaker preset: Shift+Left / Shift+Right)
+    if(bind_down("editor_undo_alt")) {
+        operation_undo();
+    }
+    else if(bind_down("editor_redo_alt")) {
+        operation_redo();
+    }
+
     // Notes operation
-    
+
     if(editor_select_count() > 0) {
-    	if(keycheck_down(ord("M"))) {
+    	if(bind_down("editor_mirror")) {
 	    	with(objNote) {
 	    		if(stateType == NOTE_STATES.SELECTED) {
 	    			origProp = get_prop();
@@ -136,7 +144,7 @@ editorSelectMultiple = editorSelectCount > 1;
             operation_merge_last_request(1, OPERATION_TYPE.MIRROR);
 	    	announcement_play(i18n_get("notes_mirror", string(editor_select_count())));
 	    }
-	    if(keycheck_down_ctrl(ord("M"))) {
+	    if(bind_down("editor_mirror_copy")) {
 	    	with(objNote) {
 	    		if(stateType == NOTE_STATES.SELECTED) {
 	    			var prop = get_prop();
@@ -148,7 +156,7 @@ editorSelectMultiple = editorSelectCount > 1;
             operation_merge_last_request(1, OPERATION_TYPE.MIRROR);
 	    	announcement_play(i18n_get("notes_mirror_copy", string(editor_select_count())));
 	    }
-	    if(keycheck_down(ord("R"))) {
+	    if(bind_down("editor_rotate")) {
 	    	var _found = 0;
 	    	with(objNote) {
 	    		if(stateType == NOTE_STATES.SELECTED)
@@ -170,7 +178,7 @@ editorSelectMultiple = editorSelectCount > 1;
 	    	else
 	    		announcement_warning("warning_notes_rotate");
 	    }
-	    if(keycheck_down_ctrl(ord("R"))) {
+	    if(bind_down("editor_rotate_copy")) {
 	    	var _found = 0;
 	    	with(objNote) {
 	    		if(stateType == NOTE_STATES.SELECTED)
@@ -192,7 +200,7 @@ editorSelectMultiple = editorSelectCount > 1;
 	    	else
 	    		announcement_warning("warning_notes_rotate_copy");
 	    }
-	    if(keycheck_down_ctrl(ord("V"))) {
+	    if(bind_down("editor_set_width")) {
 	    	with(objNote)
 	    		if(stateType == NOTE_STATES.SELECTED) {
 	    			origProp = get_prop();
@@ -204,7 +212,7 @@ editorSelectMultiple = editorSelectCount > 1;
 	    	announcement_play(i18n_get("notes_set_width", [string_format(editor_get_default_width(), 1, 2),
 	    		string(editor_select_count())]));
 	    }
-	    if(keycheck_down_ctrl(ord("1")) || keycheck_down_ctrl(vk_numpad1)) {
+	    if(bind_down("editor_set_type_note")) {
 	    	with(objNote)
 	    		if(stateType == NOTE_STATES.SELECTED)
 			    	if(noteType < 2) {
@@ -216,7 +224,7 @@ editorSelectMultiple = editorSelectCount > 1;
             operation_merge_last_request(1, OPERATION_TYPE.SETTYPE);
 			announcement_play(i18n_get("notes_set_type", ["NOTE", string(editor_select_count())]));
 	    }
-	    if(keycheck_down_ctrl(ord("2")) || keycheck_down_ctrl(vk_numpad2)) {
+	    if(bind_down("editor_set_type_chain")) {
 	    	with(objNote)
 	    		if(stateType == NOTE_STATES.SELECTED)
 			    	if(noteType < 2) {
@@ -229,16 +237,16 @@ editorSelectMultiple = editorSelectCount > 1;
 			announcement_play(i18n_get("notes_set_type", ["CHAIN", string(editor_select_count())]));
 	    }
 
-        if(keycheck_down_ctrl(ord("D"))) {
+        if(bind_down("editor_duplicate_quick")) {
             editor_note_duplicate_quick();
         }
     }
-    
-        
+
+
     editorGridWidthEnabled = !ctrl_ishold();
-    
+
     // Editor Side Switch
-    if(keycheck_down(vk_up)) {      // Now only switch between front and dual-sides
+    if(bind_down("editor_side_next")) {      // Now only switch between front and dual-sides
         if(editorLRSide)
             editor_set_editside(0);
         else if(editor_get_editside() != 0)
@@ -254,20 +262,19 @@ editorSelectMultiple = editorSelectCount > 1;
     }
     
     // Editor Mode Switch
-    var _numpads = [vk_numpad0, vk_numpad1, vk_numpad2, vk_numpad3, vk_numpad4, vk_numpad5];
     for(var i=1; i<=5; i++)
-        if(keycheck_down(ord(string(i))) || keycheck_down(_numpads[i])) {
+        if(bind_choice("editor_mode", i)) {
             if(editorMode != i)
                 _attach_reset_request = true;
             editor_set_editmode(i);
         }
-    
-    if(keycheck_down_ctrl(ord("V")) && array_length(copyStack) && editorSelectCount == 0) {
+
+    if(bind_down("editor_paste_mode_enter") && array_length(copyStack) && editorSelectCount == 0) {
         editorModeBeforeCopy = editorMode;
         editor_set_editmode(0); // Paste Mode
         _attach_reset_request = true;
     }
-    if(keycheck_down(vk_escape)) {
+    if(bind_down("editor_escape")) {
         if(editorMode == 0) {
             editor_set_editmode(editorModeBeforeCopy);
             _attach_reset_request = true;
@@ -280,17 +287,17 @@ editorSelectMultiple = editorSelectCount > 1;
     
     // Copies Mirror
     if(editorMode == 0) {
-        if(keycheck_down(ord("M"))) {
+        if(bind_down("editor_paste_mirror")) {
             for(var i=0, l=array_length(copyStack); i<l; i++)
                 copyStack[i].position = 5 - copyStack[i].position;
             _attach_reset_request = true;
         }
-        if(keycheck_down_ctrl(ord("1")) || keycheck_down_ctrl(vk_numpad1)) {
+        if(bind_down("editor_paste_type_note")) {
             for(var i=0, l=array_length(copyStack); i<l; i++)
                 copyStack[i].noteType = 0;
             _attach_reset_request = true;
         }
-        if(keycheck_down_ctrl(ord("2")) || keycheck_down_ctrl(vk_numpad2)) {
+        if(bind_down("editor_paste_type_chain")) {
             for(var i=0, l=array_length(copyStack); i<l; i++)
                 copyStack[i].noteType = 1;
             _attach_reset_request = true;
@@ -384,7 +391,7 @@ editorSelectMultiple = editorSelectCount > 1;
             
             // Change the attaching notes' center.
             var _chg = 0;
-            _chg += keycheck_down_ctrl(vk_right) - keycheck_down_ctrl(vk_left);
+            _chg += bind_axis("editor_paste_center");
             _chg += alt_ishold() * (mouse_wheel_up() - mouse_wheel_down());
             var _len = array_length(editorNoteAttaching);
             editorNoteAttachingCenter = (editorNoteAttachingCenter + _chg + _len) % _len; 
@@ -407,10 +414,10 @@ editorSelectMultiple = editorSelectCount > 1;
     }
     
     // Copy
-    
-    if(keycheck_down_ctrl(ord("C")))
+
+    if(bind_down("editor_copy"))
     	copy();
-    if(keycheck_down_ctrl(ord("X")))
+    if(bind_down("editor_cut"))
     	cut();
     if(copyRequest || cutRequest || attachRequest) {
         var _cnt = 0;

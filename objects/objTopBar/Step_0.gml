@@ -1,4 +1,11 @@
 
+if(panelCloseRequest) {
+    panelCloseRequest = false;
+    save_config();
+    gui_manager_destroy();
+    active = false;
+}
+
 if(keycheck_down(vk_tab)) {
     if(!active) {
         var _nw = BASE_RES_W/2;
@@ -33,6 +40,15 @@ if(keycheck_down(vk_tab)) {
             }
         );
         _inst.set_wh(layoutBar.w / 2,layoutBar.h + 10);
+        _inst = new Button(
+            "keybinds",
+            _nw + 10, layout.fromTop + layout.paddingH,
+            i18n_get("tab_keybinds"), function() {
+                keybind_panel_open();
+                panelCloseRequest = true;
+            }
+        );
+        _inst.set_wh(layoutBar.w - 10, layoutBar.h + 10);
         _inst = new BarColorChannel("custom_r", _nw - layout.padding - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "R");
         _inst.set_wh(layoutBar.w, layoutBar.h);
         _inst = new BarColorChannel("custom_g", _nw - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "G");

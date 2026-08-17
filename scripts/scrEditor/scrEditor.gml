@@ -225,7 +225,7 @@ function editor_snap_to_grid_y(_y, _side, _ignore_boundary = false, _ignore_grid
 	};
 
 	var timingPoints = dyc_get_timingpoints();
-	if((!objEditor.editorGridYEnabled && !_ignore_grid_setting) || !array_length(timingPoints)) return result;
+	if(((!objEditor.editorGridYEnabled || bind("editor_snap_time_disable")) && !_ignore_grid_setting) || !array_length(timingPoints)) return result;
 
     with(objEditor) {
         var targetLineBelow = objMain.targetLineBelow;
@@ -332,7 +332,7 @@ function editor_snap_to_grid_y(_y, _side, _ignore_boundary = false, _ignore_grid
 }
 
 function editor_snap_to_grid_x(_x, _side) {
-	if(!objEditor.editorGridXEnabled) return _x;
+	if(!objEditor.editorGridXEnabled || bind("editor_snap_x_disable")) return _x;
 	
 	var _pos = x_to_note_pos(_x, _side);
 	_pos = round(_pos * 10) / 10;

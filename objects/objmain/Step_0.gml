@@ -28,28 +28,28 @@ projectTime += round(delta_time / 1000);
 #endregion
 
 #region Functions Control
-    
-    if(keycheck_down(vk_f3))
+
+    if(bind_down("main_music_load"))
         music_load();
-    if(keycheck_down(vk_f4))
+    if(bind_down("main_bg_load"))
         background_load();
-    if(keycheck_down_ctrl(vk_f4))
+    if(bind_down("main_bg_reset"))
     	background_reset();
-    if(keycheck_down(vk_f5))
+    if(bind_down("main_export_xml"))
     	map_export_xml(false);
-    if(keycheck_down(vk_f6))
+    if(bind_down("main_export_raw"))
     	map_export_xml(true);
-    if(keycheck_down(vk_f11))
+    if(bind_down("main_debug_info"))
     	switch_debug_info();
-    if(keycheck_down_ctrl(ord("B"))) {
+    if(bind_down("main_show_bar")) {
 		showBar = !showBar;
 		announcement_adjust("anno_show_bar", showBar);
     }
-    if(keycheck_down(ord("P"))) {
+    if(bind_down("main_scoreboard")) {
     	hideScoreboard = !hideScoreboard;
     	announcement_adjust("anno_hide_scoreboard", hideScoreboard);
     }
-    if(keycheck_down(ord("O"))) {
+    if(bind_down("main_particles")) {
     	global.particleEffects = (global.particleEffects + 1) % 3;
 		var _effects_str = [
 			"particles_setting_off",
@@ -58,14 +58,14 @@ projectTime += round(delta_time / 1000);
 		]
     	announcement_set("anno_particles_effect", _effects_str[global.particleEffects]);
     }
-    if(keycheck_down_ctrl(ord("H"))) {
+    if(bind_down("main_hitsound")) {
     	hitSoundOn = !hitSoundOn;
     	announcement_adjust("anno_hitsound", hitSoundOn);
     }
-    
-    if(keycheck_down_ctrl(ord("T")))
+
+    if(bind_down("main_set_title"))
     	map_set_title();
-    if(keycheck_down_ctrl(ord("F"))) {
+    if(bind_down("main_side_type")) {
     	if(editor_get_editside() >= 1 && editor_get_editside() <= 2) {
     		var _side = editor_get_editside() - 1;
     		var _type = chartSideType[_side];
@@ -91,43 +91,59 @@ projectTime += round(delta_time / 1000);
     		announcement_warning("anno_switch_sidetype_warn");
     	}
     }
-    if(keycheck_down(ord("F"))) {
+    if(bind_down("main_fade_other_notes")) {
     	fadeOtherNotes = !fadeOtherNotes;
     	announcement_adjust("anno_fade_other_notes", fadeOtherNotes);
     }
-    
-    if(keycheck_down(vk_enter)) {		// Replay Mode
+
+    if(bind_down("main_replay")) {		// Replay Mode
     	playview_start_replay();
     }
-    
-    if(keycheck_down(ord("U")))
+
+    // Dynamaker-style replay from the chart's start (R / M in the Dynamaker preset)
+    if(bind_down("main_replay_from_start")) {
+    	playview_start_replay();
+    }
+
+    if(bind_down("main_offset_add"))
     	map_add_offset("", true);
-    
+
     // Latency Adjust (using key '-' and '=')
-    var _map_offset_d = real(keycheck_down(187) - keycheck_down(189));
+    var _map_offset_d = real(bind_axis("main_offset"));
     if(_map_offset_d!=0)
     	map_add_offset(_map_offset_d * latencyAdjustStep, true);
-    var _global_offset_d = real(keycheck_down_ctrl(187) - keycheck_down_ctrl(189));
+    var _global_offset_d = real(bind_axis("main_global_offset"));
     if(_global_offset_d!=0)
     	global_add_delay(_global_offset_d * latencyAdjustStep);
-    
-    
-    if(keycheck_down(ord("N"))) {
+
+
+    if(bind_down("main_simplify")) {
     	global.simplify = !global.simplify;
     	announcement_adjust("anno_simplify", global.simplify);
     }
-    
-    if(keycheck_down_ctrl(vk_f6)) {
+
+    if(bind_down("main_randomize")) {
     	chart_randomize();
     	scribble_anim_wheel(dyc_random_range(15,20), dyc_random_range(9, 20), dyc_random_range(0.5, 5)*global.timeManager.get_fps_scale());
-    	announcement_play("[rainbow][wobble][wheel][scale,2]R A N D O M[/rainbow][/wobble][/wheel][/s]\n请谨慎保存谱面。");
+    	announcement_play("[rainbow][wobble][wheel][scale,2]R A N D O M[/rainbow][/wobble][/wheel][/scale,2]\n请谨慎保存谱面。");
     }
-    
+
+    // Dynamaker-style speed & snap reset (Shift+R in the Dynamaker preset)
+    if(bind_down("main_speed_reset")) {
+    	musicSpeed = 1.0;
+    	_set_channel_speed(musicSpeed);
+    	animTargetPlaybackSpeed = 1.0;
+    	if(instance_exists(objEditor))
+    		with(objEditor)
+    			set_div(32, false);
+    	announcement_play("kb_speed_reset_done");
+    }
+
     if(mouse_check_button_pressed(mb_middle)) {
 		stat_next();
     }
 
-	if(keycheck(vk_delete) && keycheck(vk_backspace)) {
+	if(bind_chord("main_clear_all")) {
 		io_clear();
 		note_delete_all(true);
 		announcement_play("clear_all_notes");
@@ -164,7 +180,7 @@ projectTime += round(delta_time / 1000);
 
 #region Music Pause & Resume
 
-    if(keycheck_down(vk_space)) {
+    if(bind_down("main_play_pause")) {
 		playview_pause_and_resume(false);
     }
 

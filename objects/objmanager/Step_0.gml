@@ -3,20 +3,19 @@
 #region Window command
 
 if(os_type == os_windows) {
-	if(keycheck_down(vk_f7)) {
+	if(bind_down("global_fullscreen")) {
 		window_toggle_fullscreen();
 	}
 	window_check_fullscreen();
-	
+
 	if(window_command_check(window_command_close)) {
 		if(game_end_confirm())
 			return;
 	}
 }
 else {
-	if(keycheck_down(vk_f7)) {
-		if(keycheck_down(vk_f7))
-			global.fullscreen = !global.fullscreen;
+	if(bind_down("global_fullscreen")) {
+		global.fullscreen = !global.fullscreen;
 		window_set_fullscreen(global.fullscreen);
 	}
 }
@@ -38,7 +37,7 @@ if(_fmoderr < 0) {
     show_debug_message("FMOD ERROR:\n"+FMODGMS_Util_GetErrorMessage());
 }
 
-if(keycheck_down_ctrl(vk_f11)) {
+if(bind_down("global_debug_layer")) {
 	debugLayer = !debugLayer;
 	show_debug_overlay(debugLayer);
 
@@ -48,17 +47,15 @@ if(keycheck_down_ctrl(vk_f11)) {
 	
 
 if(room == rMain) {
-	if(keycheck_down(vk_f2))
-    	map_load();
-    if(keycheck_down_ctrl(ord("S"))) {
-		if(!shift_ishold())
-    		project_save();
-		else if(shift_ishold() && !alt_ishold())
-			project_save_as();
-	}
-	if(keycheck_down(vk_f1))
+	if(bind_down("global_map_load"))
+	    map_load();
+	if(bind_down("global_save"))
+		project_save();
+	else if(bind_down("global_save_as"))
+		project_save_as();
+	if(bind_down("global_project_load"))
 	    project_load();
-	if(keycheck_down_ctrl(ord("N")))
+	if(bind_down("global_project_new"))
 		project_new();
 	
 	
@@ -91,23 +88,30 @@ if(room == rMain) {
 		}
 }    
     
-if(keycheck_down_ctrl(vk_f12)) {
+if(bind_down("global_screenshot")) {
 	var _file = SYSFIX + program_directory + "Screenshots\\" + random_id(9) + ".png"
 	screen_save(_file);
 	announcement_play(i18n_get("screenshot_save") + _file)
 }
 
-else if(keycheck_down(vk_f12)) {
-	url_open("https://dyn.iorinn.moe/shortcuts.html");
+else if(bind_down("global_shortcuts_overlay")) {
+	// In-game keybind overlay (replaces the external shortcuts.html link)
+	keybind_overlay_toggle();
 }
 
-if(keycheck_down(vk_f8))
+// Hold-mode help overlay (H in the Dynamaker preset)
+if(bind("main_help_overlay"))
+	keybind_overlay_hold(true);
+else
+	keybind_overlay_hold(false);
+
+if(bind_down("global_autosave"))
 	switch_autosave();
 
-if(keycheck_down(vk_f9))
+if(bind_down("global_theme"))
 	theme_next();
 
-if(keycheck_down(vk_escape)) {
+if(bind_down("global_quit")) {
 	if(!instance_exists(objEditor)) {
 		if(game_end_confirm())
 			return;

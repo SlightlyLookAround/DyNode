@@ -10,8 +10,8 @@ chartSideType = _metadata.sideType;
 #region TIME UPDATE
 
 // Music Speed Adjust
-    
-    var _muspdchange = keycheck_down(ord("W")) - keycheck_down(ord("S"));
+
+    var _muspdchange = bind_axis("main_music_speed");
     if(_muspdchange != 0) {
         musicSpeed += 0.1 * _muspdchange;
         musicSpeed = max(musicSpeed, 0.1);
@@ -22,7 +22,7 @@ chartSideType = _metadata.sideType;
 
 // Keyboard Time & Speed Adjust
 
-    var _spdchange = keycheck_down(ord("E")) - keycheck_down(ord("Q"));
+    var _spdchange = bind_axis("main_note_speed");
     _spdchange += editor_select_is_going()? 0: wheelcheck_up_ctrl() - ((animTargetPlaybackSpeed > 0.2) * wheelcheck_down_ctrl());
     animTargetPlaybackSpeed += 0.1 * _spdchange;
     
@@ -35,10 +35,11 @@ chartSideType = _metadata.sideType;
     
     playbackSpeed = lerp_a(playbackSpeed, animTargetPlaybackSpeed, animSpeed);
     
-    var _timchange = keycheck(ord("D")) - keycheck(ord("A"));
+    var _timchange = bind_axis("main_time_scroll");
     var _timscr = wheelcheck_up() - wheelcheck_down();
-    _timchange += 3 * (keycheck_shift(ord("D")) - keycheck_shift(ord("A")))
-    
+    _timchange += 3 * bind_axis("main_time_scroll_shift");
+    _timchange += 0.2 * bind_axis("main_time_scroll_fine");   // fine scroll: 0.2x adtimeSpeed (10ms/frame)
+
     if(_timchange != 0 || _timscr != 0) {
         if(nowPlaying) {
             nowTime += (_timchange * adtimeSpeed * global.timeManager.get_fps_scale() + _timscr * scrolltimeSpeed);
@@ -48,8 +49,8 @@ chartSideType = _metadata.sideType;
             animTargetTime += (_timchange * adtimeSpeed * global.timeManager.get_fps_scale() + _timscr * scrolltimeSpeed);
         }
     }
-    
-    if(nowPlaying && keycheck_down(vk_enter)) {
+
+    if(nowPlaying && bind_down("main_replay_to_start")) {
     	nowTime = -PLAYBACK_EMPTY_TIME;
     	musicResyncRequest = true;
     }
@@ -191,7 +192,7 @@ chartSideType = _metadata.sideType;
 #region Chart Properties Update
 
 	// Adjust Difficulty
-	var _diff_delta = keycheck_down_ctrl(ord("P")) - keycheck_down_ctrl(ord("O"));
+	var _diff_delta = bind_axis("main_difficulty");
 	chartDifficulty += _diff_delta;
 	chartDifficulty = clamp(chartDifficulty, 0, global.difficultyCount - 1);
     if(_diff_delta != 0)

@@ -393,5 +393,6 @@ function input_group_validate(input_group = global.__InputManager.inputGroup) {
 
 function debug_overlay_blocks_input() {
     return is_keyboard_used_debug_overlay()
-        || is_mouse_over_debug_overlay();
+        || is_mouse_over_debug_overlay()
+        || keybind_overlay_blocks_input();
 }

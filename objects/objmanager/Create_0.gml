@@ -66,9 +66,12 @@ theme_init();
 
 i18n_init();
 
-// Load Settings
+// Keybinds Init (must run before config load / save)
 
-if(DEBUG_MODE) save_config();
+keybind_manager_init();
+keybind_registry_init();
+
+// Load Settings
 
 _lastConfig_md5 = load_config();
 

@@ -21,7 +21,8 @@ global.BUILTIN_COMMANDS = [
     CommandFix,
     CommandDuplicate,
     CommandDeduplicate,
-    CommandThemeCustom
+    CommandThemeCustom,
+    CommandBind
 ]
 
 function CommandWidth():CommandSignature("width", ["w", "wid"]) constructor {
@@ -616,6 +617,108 @@ function command_register_builtin_commands() {
     }
 }
 
+// Keybind management command.
+// Usage:
+//   bind                          - lists all actions and their current bindings
+//   bind <action>                 - shows an action's current and default binding
+//   bind <action> <keys>          - rebinds, e.g. bind editor_undo Ctrl+Shift+Z ("None" unbinds)
+//   bind preset                   - lists available presets
+//   bind preset <name>            - switches preset (dynode / dynamaker)
+//   bind reset <action>           - removes one action's user override
+//   bind reset all                - restores all defaults
+function CommandBind():CommandSignature("bind", ["keybind"]) constructor {
+    add_variant(0, 0, "Lists all keybind actions with their current bindings.");
+    add_variant(1, 0, "Shows the binding of an action. Special: 'bind preset', 'bind reset'.");
+    add_variant(2, 0, "Binds an action to a key string, e.g. bind editor_undo Ctrl+Shift+Z. Use \"None\" to unbind.");
+
+    static execute = function(args, matchedVariant) {
+        var argCount = array_length(args);
+
+        if(argCount == 0) {
+            var ids = keybind_action_ids();
+            console_echo($"Keybind actions ({string(array_length(ids))}), preset '{keybind_get_preset()}':");
+            for(var i = 0; i < array_length(ids); i++) {
+                var bindStr = keybind_binding_string_raw(ids[i]);
+                if(bindStr == "" || bindStr == "-") bindStr = "(unbound)";
+                var custom = keybind_is_customized(ids[i]) ? " *" : "";
+                console_echo("- " + ids[i] + " = " + bindStr + custom);
+            }
+            console_echo("Tip: bind <action> to inspect, bind <action> <keys> to rebind, bind reset all to restore defaults.");
+            return;
+        }
+
+        var sub = string_lower(string_trim(args[0]));
+
+        if(sub == "preset") {
+            if(argCount == 1) {
+                var presets = global.__KeyBindManager.presetOrder;
+                var names = "";
+                for(var i = 0; i < array_length(presets); i++)
+                    names += (i > 0 ? ", " : "") + presets[i];
+                console_echo($"Available presets: {names}. Current: {keybind_get_preset()}.");
+                return;
+            }
+            var presetName = string_lower(string_trim(args[1]));
+            if(keybind_set_preset(presetName)) {
+                save_config();
+                console_echo($"Preset switched to '{presetName}'.");
+            }
+            else {
+                console_echo_warning("Unknown preset '" + presetName + "'.");
+            }
+            return;
+        }
+
+        if(sub == "reset") {
+            if(argCount == 1) {
+                console_echo_warning("bind reset requires an action id or 'all'.");
+                return;
+            }
+            if(string_lower(string_trim(args[1])) == "all") {
+                keybind_reset_all();
+                save_config();
+                console_echo("All keybinds reset to defaults.");
+            }
+            else {
+                var resetId = string_trim(args[1]);
+                if(!keybind_action_exists(resetId)) {
+                    console_echo_warning("Unknown keybind action '" + resetId + "'. Use 'bind' to list.");
+                    return;
+                }
+                keybind_reset(resetId);
+                save_config();
+                console_echo($"Reset '{resetId}' to {keybind_binding_string_raw(resetId)}.");
+            }
+            return;
+        }
+
+        var actionId = string_trim(args[0]);
+        if(!keybind_action_exists(actionId)) {
+            console_echo_warning("Unknown keybind action '" + actionId + "'. Use 'bind' to list.");
+            return;
+        }
+
+        if(argCount == 1) {
+            var current = keybind_binding_string_raw(actionId);
+            if(current == "" || current == "-") current = "(unbound)";
+            console_echo($"{actionId} = {current} (context '{keybind_get_action(actionId).context}')");
+            return;
+        }
+
+        var result = keybind_set_binding(actionId, args[1]);
+        if(result.ok) {
+            save_config();
+            console_echo($"Bound {actionId} to {keybind_binding_string_raw(actionId)}.");
+        }
+        else if(array_length(result.conflict) > 0) {
+            console_echo_warning("Key already used by: " + string_join_ext(", ", result.conflict) + ".");
+        }
+        else {
+            console_echo_warning("Failed to bind: " + result.error + ".");
+        }
+    }
+}
+
 function command_arg_check_real(arg, abort = true) {
     if(!regex_is_real(arg)) {
         if(abort)
@@ -654,7 +757,7 @@ function command_arg_check_note_type(arg, abort = true) {
     static availableOptions = ["tap", "note", "hold", "slide", "chain", "normal"];
     if(!array_contains(availableOptions, arg)) {
         if(abort)
-            throw "Argument '" + string(arg) + "' is not a valid note type. Available types: " + string_join(availableOptions, ", ") + ".";
+            throw "Argument '" + string(arg) + "' is not a valid note type. Available types: " + string_join_ext(", ", availableOptions) + ".";
         return false;
     }
     return true;

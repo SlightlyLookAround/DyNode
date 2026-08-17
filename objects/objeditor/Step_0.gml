@@ -6,30 +6,37 @@
     animBeatlineTargetAlphaM = editorMode != 5 && array_length(timingPoints);
     beatlineAlphaMul = lerp_a(beatlineAlphaMul, animBeatlineTargetAlphaM, animSpeed);
     if(array_length(timingPoints)) {
-        var _modchg = keycheck_down(ord("V")) - keycheck_down(ord("C"));
-        var _groupchg = keycheck_down(ord("G"));
+        var _modchg = bind_down("editor_beatline_mode_next") - bind_down("editor_beatline_mode_prev");
+        var _groupchg = bind_down("editor_beatline_group_switch");
         beatlineNowGroup += _groupchg;
         beatlineNowGroup %= 2;
         beatlineNowMode += _modchg;
         beatlineNowMode = clamp(beatlineNowMode, 0, array_length(beatlineModes[beatlineNowGroup])-1);
-        
+
         if(_modchg != 0 || _groupchg != 0) {
         	set_div(beatlineDivs[beatlineNowGroup][beatlineNowMode], false);
             announcement_play(i18n_get("beatline_divs", [string(get_div()),
             	chr(beatlineNowGroup+ord("A"))]), 3000, "beatlineDiv");
         }
-        
-        if(keycheck_down(192)) {
+
+        if(bind_down("editor_beatline_div_custom")) {
         	if(editor_set_div())
 	        	announcement_play(i18n_get("beatline_divs", [string(get_div()),
 	            	chr(beatlineNowGroup+ord("A"))]), 3000, "beatlineDiv");
         }
-        
-        animBeatlineTargetAlpha[0] += 0.7 * keycheck_down(vk_down);
-        animBeatlineTargetAlpha[1] += 0.7 * keycheck_down(vk_left);
-        animBeatlineTargetAlpha[2] += 0.7 * keycheck_down(vk_right);
 
-        if(keycheck_down(vk_down) || keycheck_down(vk_left) || keycheck_down(vk_right)) {
+        var _findiv = bind_axis("editor_beatline_div_fine");
+        if(_findiv != 0) {
+        	set_div(clamp(get_div() + _findiv, 1, 128), false);
+        	announcement_play(i18n_get("beatline_divs", [string(get_div()),
+            	chr(beatlineNowGroup+ord("A"))]), 3000, "beatlineDiv");
+        }
+
+        animBeatlineTargetAlpha[0] += 0.7 * bind_down("editor_beatline_side_down");
+        animBeatlineTargetAlpha[1] += 0.7 * bind_down("editor_beatline_side_left");
+        animBeatlineTargetAlpha[2] += 0.7 * bind_down("editor_beatline_side_right");
+
+        if(bind_down("editor_beatline_side_down") || bind_down("editor_beatline_side_left") || bind_down("editor_beatline_side_right")) {
             if(editor_get_editmode() == 5)
                 editor_set_editmode(4);
         }
@@ -54,7 +61,7 @@
         }
     }
     else {
-        if(keycheck_down(vk_down) || keycheck_down(vk_left) || keycheck_down(vk_right)) {
+        if(bind_down("editor_beatline_side_down") || bind_down("editor_beatline_side_left") || bind_down("editor_beatline_side_right")) {
             announcement_warning("beatline_without_timing");
         }
     }
