@@ -8,6 +8,7 @@
 #include <taskflow/algorithm/for_each.hpp>
 #include <taskflow/algorithm/sort.hpp>
 #include <taskflow/taskflow.hpp>
+#include <thread>
 #include <vector>
 
 #include "note.h"
@@ -15,6 +16,12 @@
 #include "profile.h"
 #include "taskflow/core/executor.hpp"
 #include "utils.h"
+
+tf::Executor &get_shared_taskflow_executor() {
+    static tf::Executor executor(static_cast<size_t>(std::max(
+        static_cast<unsigned int>(1), std::thread::hardware_concurrency())));
+    return executor;
+}
 
 NotePoolManager::NotePoolManager()
     : monotonic_res(initial_buffer.data(), initial_buffer.size(),
@@ -197,7 +204,6 @@ void NotePoolManager::access_all_notes_safe(
 void NotePoolManager::access_all_notes_parallel(
     std::function<void(Note&)> executor) {
     std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
-    tf::Executor tfexecutor;
     tf::Taskflow taskflow;
     taskflow.for_each(noteArray.begin(), noteArray.end(), [&](nptr note_ptr) {
         if (note_ptr) {
@@ -209,7 +215,7 @@ void NotePoolManager::access_all_notes_parallel(
             sync_hold_note_length(*note_ptr);
         }
     });
-    tfexecutor.run(taskflow).wait();
+    get_shared_taskflow_executor().run(taskflow).wait();
 }
 
 void NotePoolManager::access_all_notes_parallel_safe(
@@ -224,7 +230,6 @@ void NotePoolManager::access_all_notes_parallel_safe(
             }
         }
     }
-    tf::Executor tfexecutor;
     tf::Taskflow taskflow;
     taskflow.for_each(notes.begin(), notes.end(), [&](nptr note_ptr) {
         double origTime = note_ptr->time;
@@ -234,7 +239,7 @@ void NotePoolManager::access_all_notes_parallel_safe(
         sync_head_note_to_sub(*note_ptr);
         sync_hold_note_length(*note_ptr);
     });
-    tfexecutor.run(taskflow).wait();
+    get_shared_taskflow_executor().run(taskflow).wait();
 }
 
 void NotePoolManager::sync_head_note_to_sub(const Note& note) {
@@ -374,10 +379,9 @@ void NotePoolManager::array_sort() {
     if (enableParallelSort) {
         // Use parallel sort
         tf::Taskflow taskflow;
-        tf::Executor tfexecutor;
         taskflow.sort(noteArray.begin(), noteArray.end(), noteArray_cmp);
         taskflow.sort(holdArray.begin(), holdArray.end(), holdArray_cmp);
-        tfexecutor.run(taskflow).wait();
+        get_shared_taskflow_executor().run(taskflow).wait();
     } else {
         std::sort(noteArray.begin(), noteArray.end(), noteArray_cmp);
         std::sort(holdArray.begin(), holdArray.end(), holdArray_cmp);

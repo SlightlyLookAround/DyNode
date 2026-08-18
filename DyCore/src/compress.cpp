@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #include "api.h"
 #include "gm.h"
@@ -47,8 +48,19 @@ DYCORE_API double DyCore_compress_string(const char* str, char* targetBuffer,
 
     std::cout << "[DyCore] Start compressing..." << std::endl;
 
-    size_t const cSize = ZSTD_compress(cBuff.get(), cBuffSize, fBuff.get(),
-                                       fSize, (int)compressionLevel);
+    // Multithreaded compression for large inputs; the persistent context
+    // keeps zstd's worker pool warm across saves. Small inputs stay
+    // single-threaded, where spawning workers would only add overhead.
+    static ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+    const unsigned int workerCount =
+        fSize >= (1u << 20) ? std::min(std::thread::hardware_concurrency(), 8u)
+                            : 0;
+    ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, (int)workerCount);
+    ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel,
+                           (int)compressionLevel);
+
+    size_t const cSize =
+        ZSTD_compress2(cctx, cBuff.get(), cBuffSize, fBuff.get(), fSize);
 
     std::cout << "[DyCore] Finish compressing, checking..." << std::endl;
 

@@ -6,7 +6,8 @@
 #include <unordered_map>
 
 inline constexpr double HOLD_BG_LIGHTNESS = 0.3;
-inline constexpr size_t MULTITHREAD_RENDERING_BYTE_THRESHOLD = 2 * 1024 * 1024;
+// Batched rendering pays off from roughly a thousand notes per frame.
+inline constexpr size_t MULTITHREAD_RENDERING_BYTE_THRESHOLD = 512 * 1024;
 
 // NORMAL: A single, non-segmented sprite
 //   data: none

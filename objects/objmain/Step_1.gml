@@ -224,6 +224,9 @@ chartSideType = _metadata.sideType;
             var note = _activeNotes[i];
             note_check_and_activate(note);
         }
+        // Batch-fetch all active note props once so note instances pull from
+        // the cache instead of doing one extension round trip each.
+        dyc_active_props_cache_refresh();
     }
 
 #endregion

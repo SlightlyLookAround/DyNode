@@ -189,6 +189,9 @@ function dyc_update_note(noteProp, record = false, recursive = false) {
         return;
     }
 
+    // Modified notes must be re-pulled from the backend, not the frame cache.
+    dyc_active_props_cache_invalidate();
+
     var origProp = -1;
     if(record) origProp = dyc_get_note(noteID);
 
@@ -338,6 +341,7 @@ function dyc_chart_import_xml(filePath, importInfo, importTiming) {
 
     show_debug_message("Load XML file completed.");
     analytics_track_event("ChartImportXML", { result: _result });
+    dyc_active_props_cache_invalidate();
     return 0;
 }
 
@@ -353,6 +357,7 @@ function dyc_chart_import_dy(filePath, importInfo, importTiming) {
 
     show_debug_message("Load DY file completed.");
     analytics_track_event("ChartImportDY", { result: _result });
+    dyc_active_props_cache_invalidate();
     return 0;
 }
 
@@ -375,7 +380,9 @@ function dyc_project_load(filePath) {
 }
 
 function dyc_chart_import_dyn(filePath, importInfo, importTiming) {
-    return DyCore_chart_import_dyn(filePath, importInfo, importTiming);
+    var _result = DyCore_chart_import_dyn(filePath, importInfo, importTiming);
+    dyc_active_props_cache_invalidate();
+    return _result;
 }
 
 /// @returns {Any} The chart metadata struct.
@@ -616,6 +623,55 @@ function dyc_get_active_notes(nowTime, noteSpeed) {
 
 function dyc_update_active_notes() {
     DyCore_cac_active_notes(objMain.nowTime, objMain.playbackSpeed);
+}
+
+/// @description Refresh the per-frame active note props cache.
+/// Call once per frame from objMain Step_1, after notes are activated.
+/// One batched DyCore call replaces hundreds of per-note round trips.
+function dyc_active_props_cache_refresh() {
+    if(global.dycActivePropsFrame == global.frameCurrentTime) return;
+    global.dycActivePropsFrame = global.frameCurrentTime;
+    global.dycActivePropsCache = undefined;
+
+    static buffer = buffer_create(1024 * 1024, buffer_fixed, 1);
+    var boundSize = DyCore_get_active_notes_props_bound();
+    if(boundSize > buffer_get_size(buffer)) {
+        buffer_resize(buffer, boundSize);
+        buffer_set_used_size(buffer, boundSize);
+    }
+    if(DyCore_get_active_notes_props(buffer_get_address(buffer)) != 0) return;
+
+    buffer_seek(buffer, buffer_seek_start, 0);
+    var count = buffer_read(buffer, buffer_u32);
+    var _cache = {};
+    for(var i = 0; i < count; i++) {
+        var _prop = new sNoteProp();
+        _prop.side = buffer_read(buffer, buffer_u32);
+        _prop.noteType = buffer_read(buffer, buffer_u32);
+        _prop.time = buffer_read(buffer, buffer_f64);
+        _prop.width = buffer_read(buffer, buffer_f64);
+        _prop.position = buffer_read(buffer, buffer_f64);
+        _prop.lastTime = buffer_read(buffer, buffer_f64);
+        _prop.beginTime = buffer_read(buffer, buffer_f64);
+        _prop.noteID = buffer_read(buffer, buffer_string);
+        _prop.subNoteID = buffer_read(buffer, buffer_string);
+        _cache[$ _prop.noteID] = _prop;
+    }
+    global.dycActivePropsCache = _cache;
+}
+
+/// @description Get a note's props from the per-frame cache.
+/// @param {String} noteID
+/// @returns {Struct.sNoteProp} The note struct or undefined on miss.
+function dyc_active_props_cache_get(noteID) {
+    var _cache = global.dycActivePropsCache;
+    if(!is_struct(_cache)) return undefined;
+    return _cache[$ noteID];
+}
+
+/// @description Invalidate the per-frame props cache after any note change.
+function dyc_active_props_cache_invalidate() {
+    global.dycActivePropsCache = undefined;
 }
 
 /// @description This function will not update active notes.

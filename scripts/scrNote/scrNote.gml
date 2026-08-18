@@ -183,6 +183,7 @@ function note_delete_all(_record = false) {
 		instance_destroy(objNote);
 		DyCore_clear_notes();
 	}
+	dyc_active_props_cache_invalidate();
 }
 
 function note_check_and_activate(index_or_ID) {

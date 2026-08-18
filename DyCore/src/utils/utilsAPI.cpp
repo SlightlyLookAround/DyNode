@@ -1,9 +1,11 @@
 #include <exception>
 #include <random>
 #include <regex>
+#include <taskflow/algorithm/sort.hpp>
 
 #include "api.h"
 #include "gm.h"
+#include "notePoolManager.h"
 #include "utils.h"
 // Copies a block of memory from a source address to a destination address.
 DYCORE_API double DyCore_buffer_copy(void* dst, void* src, double size) {
@@ -11,11 +13,22 @@ DYCORE_API double DyCore_buffer_copy(void* dst, void* src, double size) {
     return 0;
 }
 
+// Parallel index sort threshold. Below this, task scheduling overhead
+// outweighs the parallel merge sort.
+inline constexpr size_t INDEX_SORT_PARALLEL_THRESHOLD = 4096;
+
 // Sorts an array of std::pair<double, double> in ascending order based on the
 // first element of the pair.
 DYCORE_API double DyCore_index_sort(void* data, double size) {
     auto* pair_data = static_cast<std::pair<double, double>*>(data);
-    std::sort(pair_data, pair_data + (size_t)size);
+    const size_t count = static_cast<size_t>(size);
+    if (count >= INDEX_SORT_PARALLEL_THRESHOLD) {
+        tf::Taskflow taskflow;
+        taskflow.sort(pair_data, pair_data + count);
+        get_shared_taskflow_executor().run(taskflow).wait();
+    } else {
+        std::sort(pair_data, pair_data + count);
+    }
     return 0;
 }
 

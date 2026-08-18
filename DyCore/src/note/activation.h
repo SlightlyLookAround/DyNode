@@ -41,6 +41,13 @@ class NoteActivationManager {
         return (NOTE_ID_LENGTH + 1) * activeNotes.size();
     }
 
+    // Writes every active note's full props (plus the sub-note of each active
+    // hold) into buffer as [u32 count][count x Note::write() records].
+    // Records are written in parallel when the batch is large enough.
+    // Returns false if any active note could not be resolved.
+    bool bitwrite_active_notes_props(char* buffer) const;
+    size_t get_active_notes_props_bound() const;
+
     NoteActivationManager operator=(const NoteActivationManager& other) =
         delete;
 };

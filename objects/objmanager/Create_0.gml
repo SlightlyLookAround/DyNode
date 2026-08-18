@@ -88,6 +88,9 @@ global.__GUIManager = undefined;
 global.shadowCount = 0;
 // Used to distinguish different frames. Updated on begin step event.
 global.frameCurrentTime = 0;
+// Per-frame active note props cache (refreshed by objMain Step_1).
+global.dycActivePropsFrame = -1;
+global.dycActivePropsCache = undefined;
 // Used to prevent multiple saves from happening at once.
 global.isSaving = false;
 

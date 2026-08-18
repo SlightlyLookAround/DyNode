@@ -254,7 +254,8 @@ image_yscale = 1;
     /// @description Pull the note's properties from backend.
     function pull_prop() {
         if(noteID == "") return;
-        propertyStr = dyc_get_note(noteID);
+        propertyStr = dyc_active_props_cache_get(noteID);
+        if(propertyStr == undefined) propertyStr = dyc_get_note(noteID);
     	time = propertyStr.time;
     	side = propertyStr.side;
     	width = propertyStr.width;

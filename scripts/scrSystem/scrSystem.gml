@@ -43,6 +43,7 @@ function map_close() {
 		DyCore_clear_notes();
 		global.noteIDMan.clear();
 		global.activationMan.clear();
+		dyc_active_props_cache_invalidate();
 		global.isSaving = false;
 
 		with(objManager) {
@@ -497,6 +498,7 @@ function map_add_offset(_offset = "", record = false) {
 	dyc_timingpoints_add_offset(_offset);
 	
 	DyCore_note_add_offset(_offset);
+	dyc_active_props_cache_invalidate();
 	
 	announcement_play(i18n_get("anno_add_offset", _offset));
 	

@@ -60,7 +60,7 @@ struct Note {
                sizeof(char) * (noteID.size() + subNoteID.size() + 4);
     }
 
-    void write(char *buffer) {
+    void write(char *buffer) const {
         char *ptr = buffer;
         bitwrite(ptr, side);
         bitwrite(ptr, type);

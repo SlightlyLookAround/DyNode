@@ -1,9 +1,11 @@
 #pragma once
 
+#include <taskflow/algorithm/for_each.hpp>
 #include <unordered_map>
 #include <vector>
 
 #include "note.h"
+#include "notePoolManager.h"
 #include "timing.h"
 
 struct DYMNotedata {
@@ -66,13 +68,15 @@ inline void import_timing_points(bool importTiming, bool hasTimingData,
     timingMan.sort();
 }
 
+// Each note's time is computed independently from the timing points, so the
+// loop is embarrassingly parallel for large charts.
 inline void fix_imported_note_times(
     std::vector<DYMNotedata>& notes,
     const std::vector<DYMTimingData>& timings, double offset,
-    double barPerMin) {
+    double barPerMin, bool useParallel = true) {
     const double fixedOffset = imported_bar_to_time(offset, barPerMin);
 
-    for (auto& note : notes) {
+    const auto fix_note = [&](DYMNotedata& note) {
         if (timings.size() > 1) {
             const double noteBar = note.bar;
             double runningTime = 0.0;
@@ -96,6 +100,17 @@ inline void fix_imported_note_times(
         }
 
         note.time -= fixedOffset;
+    };
+
+    constexpr size_t FIX_NOTE_PARALLEL_THRESHOLD = 2048;
+    if (useParallel && notes.size() >= FIX_NOTE_PARALLEL_THRESHOLD) {
+        tf::Taskflow taskflow;
+        taskflow.for_each(notes.begin(), notes.end(), fix_note);
+        get_shared_taskflow_executor().run(taskflow).wait();
+    } else {
+        for (auto& note : notes) {
+            fix_note(note);
+        }
     }
 }
 

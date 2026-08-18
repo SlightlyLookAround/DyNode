@@ -8,6 +8,15 @@
 
 inline constexpr int NOTES_ARRAY_PARALLEL_SORT_THRESHOLD = 10000;
 
+namespace tf {
+class Executor;
+}
+
+// Shared taskflow executor for all parallel batch work in the core.
+// Creating a fresh executor per call would spin the thread pool up and down
+// every invocation, which costs more than the parallel work it enables.
+tf::Executor &get_shared_taskflow_executor();
+
 class NotePoolManager {
     friend NoteActivationManager;
 

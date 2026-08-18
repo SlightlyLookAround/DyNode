@@ -169,6 +169,21 @@ DYCORE_API double DyCore_get_active_notes_bound() {
     return man.get_bitwrite_bound();
 }
 
+// Byte size of the props batch for the current active note list.
+// Call after DyCore_cac_active_notes within the same frame.
+DYCORE_API double DyCore_get_active_notes_props_bound() {
+    auto& man = get_note_activation_manager();
+    return man.get_active_notes_props_bound();
+}
+
+// Serializes every active note's full props (plus each active hold's
+// sub-note) into buffer as [u32 count][count x Note records].
+// Returns 0 on success, -1 on failure.
+DYCORE_API double DyCore_get_active_notes_props(char* buffer) {
+    auto& man = get_note_activation_manager();
+    return man.bitwrite_active_notes_props(buffer) ? 0 : -1;
+}
+
 DYCORE_API double DyCore_get_note_index_lower_bound(double time) {
     auto& noteMan = get_note_pool_manager();
     noteMan.array_sort_request();

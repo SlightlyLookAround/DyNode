@@ -28,6 +28,8 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 file(GLOB ZSTD_SOURCES "lib/zstd/*/*.c")
 add_library(zstd STATIC ${ZSTD_SOURCES})
 target_include_directories(zstd PUBLIC "lib/zstd")
+# Enable zstd's built-in multithreaded compression (Win32 threads on Windows).
+target_compile_definitions(zstd PUBLIC ZSTD_MULTITHREAD)
 
 file(GLOB LUA_SOURCES "lib/lua/*.c")
 add_library(lua STATIC ${LUA_SOURCES})
