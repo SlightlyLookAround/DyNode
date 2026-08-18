@@ -2,6 +2,10 @@
 
 #macro HOLD_MINIMUM_LENGTH (0.0001)
 
+// Lazily generate the pre-stretched hold background sprites (freed in map_close).
+if(!variable_global_exists("sprHoldBG") || is_undefined(global.sprHoldBG) || !sprite_exists(global.sprHoldBG[0]))
+	global.sprHoldBG = generate_hold_sprite(BASE_RES_W + 4*sprite_get_height(sprHold));
+
 // Inherit the parent event
 event_inherited();
 

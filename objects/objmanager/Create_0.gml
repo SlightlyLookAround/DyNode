@@ -97,7 +97,6 @@ global.isSaving = false;
 // Generate Temp Sprite
 
 global.sprLazer = generate_lazer_sprite(2048);
-global.sprHoldBG = generate_hold_sprite(BASE_RES_W + 4*sprite_get_height(sprHold));
 global.sprPauseShadow = generate_pause_shadow(200);
 
 // Set GUI & Window Resolution

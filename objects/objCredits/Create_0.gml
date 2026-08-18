@@ -76,7 +76,7 @@ function get_license_text() {
 middleText = get_about_text();
 rightText = get_license_text();
 
-function draw_credits(credits_array, X, offsetY) {
+function draw_credits(credits_array, X, offsetY, _draw = true) {
     var curY = offsetY;
     for(var i = 0; i < array_length(credits_array); i++) {
         var _cur = credits_array[i];
@@ -90,15 +90,17 @@ function draw_credits(credits_array, X, offsetY) {
             .align(fa_right, fa_bottom)
             .msdf_shadow(c_black, 0.8, 0, 3, 6)
             .blend(image_blend, image_alpha);
-        if(_contribution == "") {
-            _ele.align(fa_center, fa_bottom)
-                .draw(X, curY + creditsNameYOffset);
-        }
-        else {
-            _ele.draw(X - creditsMidPadding / 2, curY + creditsNameYOffset);
+        if(_draw) {
+            if(_contribution == "") {
+                _ele.align(fa_center, fa_bottom)
+                    .draw(X, curY + creditsNameYOffset);
+            }
+            else {
+                _ele.draw(X - creditsMidPadding / 2, curY + creditsNameYOffset);
+            }
         }
         
-        if(DEBUG_MODE) {
+        if(DEBUG_MODE && _draw) {
             draw_set_color(c_red);
             draw_line(0, curY, width, curY);
         }
@@ -110,7 +112,8 @@ function draw_credits(credits_array, X, offsetY) {
                 .align(fa_left, fa_bottom)
                 .msdf_shadow(c_black, 0.8, 0, 3, 6)
                 .blend(image_blend, image_alpha);
-            _con_ele.draw(X + creditsMidPadding / 2, curY);
+            if(_draw)
+                _con_ele.draw(X + creditsMidPadding / 2, curY);
         }
 
         curY += creditsRowPadding;
@@ -118,6 +121,65 @@ function draw_credits(credits_array, X, offsetY) {
     }
 
     return curY - offsetY;
+}
+
+// Cached credits block surface (built lazily in Draw_64, freed in CleanUp).
+creditsSurf = -1;
+creditsScalar = -1;
+creditsLang = "";
+creditsBlockH = 0;
+
+// Renders the full static credits block at <_offsetY> in world space and
+// returns its height. Pass _draw = false to only measure the block layout.
+function render_credits_block(_offsetY, _draw = true) {
+    var _curHeight = _offsetY;
+
+    // Draw head part.
+    var _ele = scribble(middleText)
+        .starting_format("sprMsdfNotoSans", c_white)
+        .align(fa_center, fa_top)
+        .msdf_shadow(c_black, 0.8, 0, 3, 6)
+        .blend(image_blend, image_alpha);
+    if(_draw)
+        _ele.draw(width / 2, _curHeight);
+    _curHeight += _ele.get_height() + creditsPartPadding;
+
+    // Draw localization part.
+    var _loc_ele = scribble(i18n_get("credits_localization_title"))
+        .starting_format("sprMsdfNotoSans", c_white)
+        .align(fa_center, fa_top)
+        .scale(1.6)
+        .msdf_shadow(c_black, 0.8, 0, 3, 6)
+        .blend(image_blend, image_alpha);
+    if(_draw)
+        _loc_ele.draw(width / 2, _curHeight);
+    _curHeight += _loc_ele.get_height() + creditsRowPadding;
+    var _loc_height = draw_credits(localization, width / 2, _curHeight, _draw);
+    _curHeight += _loc_height + creditsPartPadding;
+
+    // Draw special special_thanks part.
+    var _st_ele = scribble(i18n_get("credits_special_thanks_title"))
+        .starting_format("sprMsdfNotoSans", c_white)
+        .align(fa_center, fa_top)
+        .scale(1.6)
+        .msdf_shadow(c_black, 0.8, 0, 3, 6)
+        .blend(image_blend, image_alpha);
+    if(_draw)
+        _st_ele.draw(width / 2, _curHeight);
+    _curHeight += _st_ele.get_height() + creditsRowPadding;
+    var _st_height = draw_credits(special_thanks, width / 2, _curHeight, _draw);
+    _curHeight += _st_height + creditsPartPadding;
+
+    var _license_ele = scribble(rightText)
+        .starting_format("sprMsdfNotoSans", c_white)
+        .align(fa_right, fa_top)
+        .msdf_shadow(c_black, 0.8, 0, 3, 6)
+        .blend(image_blend, image_alpha);
+    if(_draw)
+        _license_ele.draw(width - 100, _curHeight);
+    _curHeight += _license_ele.get_height();
+
+    return _curHeight - _offsetY;
 }
 
 analytics_track_event("CreditsOpen");

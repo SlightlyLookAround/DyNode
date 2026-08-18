@@ -16,6 +16,7 @@ function map_close() {
 		kawase_destroy(kawaseArr);
 		surface_free_f(shadowPingSurf);
 		surface_free_f(shadowPongSurf);
+		surface_free_f(partSurf);
 		
 		note_delete_all();
 		instance_destroy(objScoreBoard);
@@ -52,6 +53,15 @@ function map_close() {
 			videoPath = "";
 			projectPath = "";
 		}
+	}
+
+	// Release the lazily-generated hold background sprites.
+	if(variable_global_exists("sprHoldBG") && !is_undefined(global.sprHoldBG)) {
+		if(sprite_exists(global.sprHoldBG[0]))
+			sprite_delete(global.sprHoldBG[0]);
+		if(sprite_exists(global.sprHoldBG[1]))
+			sprite_delete(global.sprHoldBG[1]);
+		global.sprHoldBG = undefined;
 	}
 	
 	instance_destroy(objMain);
