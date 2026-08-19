@@ -859,3 +859,60 @@ function dyc_solve_natural_spline(xIn, fIn, xOut) {
 function dyc_get_note_hash(noteID, includeID) {
     return DyCore_get_note_hash(noteID, includeID ? 1 : 0);
 }
+
+// ---------------------------------------------------------------------------
+// Batch operations (parallel C++ via DyCore)
+// ---------------------------------------------------------------------------
+
+/// @description Parallel fix out-of-screen notes. Clamps position to [0, 5].
+/// @returns {Real} Number of fixed notes.
+function dyc_editor_fix_notes() {
+    return DyCore_editor_fix_notes();
+}
+
+/// @description Parallel timing fix: rescale notes in a timing segment after BPM change.
+/// @param {Struct} tpBefore Old timing point (needs .time, .beatLength).
+/// @param {Struct} tpAfter New timing point (needs .time, .beatLength).
+/// @returns {Real} Affected count (positive) or negative if cross-boundary warning.
+function dyc_timing_fix(tpBefore, tpAfter) {
+    var timingPoints = dyc_get_timingpoints();
+    var l = array_length(timingPoints);
+    var at = -1;
+    for (var i = 0; i < l; i++)
+        if (timingPoints[i].time == tpBefore.time) { at = i; break; }
+    var nextTime = (at + 1 == l) ? -1 : timingPoints[at + 1].time;
+    return DyCore_timing_fix(
+        tpBefore.time, tpBefore.beatLength,
+        tpAfter.time, tpAfter.beatLength,
+        nextTime
+    );
+}
+
+/// @description Parallel chart randomize. Writes original props to buffer for undo.
+/// @param {Id.Buffer} outBuffer Buffer to receive original props for undo.
+/// @returns {Real} Number of randomized notes.
+function dyc_chart_randomize(outBuffer) {
+    return DyCore_chart_randomize(buffer_get_address(outBuffer));
+}
+
+/// @description Convert absolute time (ms) to 1-based bar position using segment lookup table.
+/// @param {Real} time Absolute time in milliseconds.
+/// @returns {Real} Bar position (1-based, fractional).
+function dyc_time_to_bar(time) {
+    return DyCore_time_to_bar(time);
+}
+
+/// @description Convert 1-based bar position to absolute time (ms) using segment lookup table.
+/// @param {Real} bar Bar position (1-based, fractional).
+/// @returns {Real} Absolute time in milliseconds.
+function dyc_bar_to_time(bar) {
+    return DyCore_bar_to_time(bar);
+}
+
+/// @description Add a signed bar delta to an absolute time, handling timing point boundaries.
+/// @param {Real} time Absolute time in milliseconds.
+/// @param {Real} deltaBars Signed bar delta.
+/// @returns {Real} New absolute time in milliseconds.
+function dyc_time_add_bar_delta(time, deltaBars) {
+    return DyCore_time_add_bar_delta(time, deltaBars);
+}

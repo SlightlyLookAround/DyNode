@@ -113,3 +113,64 @@ void TimingManager::add_offset(double offset) {
     }
     mark_modified();
 }
+
+void TimingManager::rebuild_segment_table() {
+    if (segmentTableBuiltTime == lastModifiedTime)
+        return;
+    sort();
+    segmentTable.clear();
+    segmentTable.reserve(timingPoints.size());
+    double totalBars = 1.0;
+    for (size_t i = 0; i < timingPoints.size(); i++) {
+        segmentTable.push_back({timingPoints[i].time, timingPoints[i].beatLength,
+                                timingPoints[i].meter, totalBars});
+        if (i + 1 < timingPoints.size()) {
+            totalBars += std::ceil((timingPoints[i + 1].time - timingPoints[i].time) /
+                                   (timingPoints[i].beatLength * timingPoints[i].meter));
+        }
+    }
+    segmentTableBuiltTime = lastModifiedTime;
+}
+
+double TimingManager::time_to_bar(double time) {
+    rebuild_segment_table();
+    if (segmentTable.empty())
+        return 0;
+
+    // Binary search: find last segment with segment.time <= time (+1ms error correction).
+    auto it = std::upper_bound(
+        segmentTable.begin(), segmentTable.end(), time + 1.0,
+        [](double t, const TimingSegment& s) { return t < s.time; });
+    if (it != segmentTable.begin())
+        --it;
+
+    const auto& seg = *it;
+    double nowBeats = (time - seg.time) / seg.beatLength;
+    double nowBars = nowBeats / seg.meter;
+    return seg.barOffset + nowBars;
+}
+
+double TimingManager::bar_to_time(double bar) {
+    rebuild_segment_table();
+    if (segmentTable.empty() || bar <= 0)
+        return 0;
+
+    // Binary search: find last segment with segment.barOffset <= bar.
+    auto it = std::upper_bound(
+        segmentTable.begin(), segmentTable.end(), bar,
+        [](double b, const TimingSegment& s) { return b < s.barOffset; });
+    if (it != segmentTable.begin())
+        --it;
+
+    const auto& seg = *it;
+    double remainingBars = bar - seg.barOffset;
+    double remainingBeats = remainingBars * seg.meter;
+    return seg.time + remainingBeats * seg.beatLength;
+}
+
+double TimingManager::time_add_bar_delta(double time, double deltaBars) {
+    if (deltaBars == 0)
+        return time;
+    double bar = time_to_bar(time);
+    return bar_to_time(bar + deltaBars);
+}

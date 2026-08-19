@@ -1,8 +1,12 @@
 #include "notePoolManager.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cmath>
+#include <cstring>
 #include <mutex>
+#include <random>
 #include <shared_mutex>
 #include <stdexcept>
 #include <taskflow/algorithm/for_each.hpp>
@@ -11,6 +15,7 @@
 #include <thread>
 #include <vector>
 
+#include "bitio.h"
 #include "note.h"
 #include "notePoolManager.h"
 #include "profile.h"
@@ -442,6 +447,189 @@ int NotePoolManager::get_index_lowerbound(double time) {
 void NotePoolManager::reclaim_memory() {
     pool_res.release();
     monotonic_res.release();
+}
+
+// ---------------------------------------------------------------------------
+// Batch operations — parallel processing via shared taskflow executor.
+// ---------------------------------------------------------------------------
+
+static constexpr double BASE_RES_W = 1920.0;
+static constexpr double BASE_RES_H = 1080.0;
+
+static double note_pos_to_x_cxx(double position, int side) {
+    if (side == 0)
+        return BASE_RES_W / 2.0 + (position - 2.5) * 300.0;
+    return BASE_RES_H / 2.0 + (2.5 - position) * 150.0;
+}
+
+static double get_pixel_width_cxx(double width, int side) {
+    double pWidth = width * 300.0 / (side == 0 ? 1.0 : 2.0) - 30.0;
+    return std::max(pWidth, 0.0);
+}
+
+static bool is_outscreen_cxx(double position, double width, int side) {
+    double pWidth = get_pixel_width_cxx(width, side);
+    double nx = note_pos_to_x_cxx(position, side);
+    if (side == 0) {
+        double xl = nx - pWidth / 2.0;
+        double xr = nx + pWidth / 2.0;
+        return xr <= 0.0 || xl >= BASE_RES_W;
+    }
+    double yl = nx - pWidth / 2.0;
+    double yr = nx + pWidth / 2.0;
+    return yr <= 0.0 || yl >= BASE_RES_H;
+}
+
+int NotePoolManager::batch_fix_notes() {
+    array_sort_request();
+
+    std::vector<nptr> notes;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
+        notes.reserve(noteArray.size());
+        for (const auto& ptr : noteArray) {
+            if (ptr)
+                notes.push_back(ptr);
+        }
+    }
+
+    std::atomic<int> fixCount{0};
+
+    tf::Taskflow taskflow;
+    taskflow.for_each(notes.begin(), notes.end(), [&](const nptr& notePtr) {
+        if (notePtr->type == static_cast<int>(NOTE_TYPE::SUB))
+            return;
+        if (!is_outscreen_cxx(notePtr->position, notePtr->width, notePtr->side))
+            return;
+        double clamped = std::clamp(notePtr->position, 0.0, 5.0);
+        if (clamped != notePtr->position) {
+            notePtr->position = clamped;
+            fixCount.fetch_add(1, std::memory_order_relaxed);
+        }
+    });
+    get_shared_taskflow_executor().run(taskflow).wait();
+
+    if (fixCount.load() > 0)
+        set_ooo();
+
+    return fixCount.load();
+}
+
+int NotePoolManager::batch_timing_fix(double tpBeforeTime,
+                                      double tpBeforeBeatLen,
+                                      double tpAfterTime,
+                                      double tpAfterBeatLen,
+                                      double nextTPTime,
+                                      bool& crossWarning) {
+    array_sort_request();
+
+    const double timeL = tpBeforeTime;
+    const double timeR = (nextTPTime < 0) ? 1e9 : (nextTPTime - 1.0);
+
+    int lo = get_index_lowerbound(timeL);
+    int hi = get_index_upperbound(timeR);
+    if (lo >= hi)
+        return 0;
+
+    std::vector<nptr> affected;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
+        affected.reserve(hi - lo);
+        for (int i = lo; i < hi; i++) {
+            if (noteArray[i])
+                affected.push_back(noteArray[i]);
+        }
+    }
+
+    if (affected.empty())
+        return 0;
+
+    const double ratio = tpAfterBeatLen / tpBeforeBeatLen;
+    std::atomic<int> affectedCount{0};
+    std::atomic<bool> cross{false};
+
+    tf::Taskflow taskflow;
+    taskflow.for_each(affected.begin(), affected.end(), [&](const nptr& notePtr) {
+        if (notePtr->type == static_cast<int>(NOTE_TYPE::SUB))
+            return;
+        double newTime = (notePtr->time - tpBeforeTime) * ratio + tpAfterTime;
+        if (newTime > timeR)
+            cross.store(true, std::memory_order_relaxed);
+        if (notePtr->type == static_cast<int>(NOTE_TYPE::HOLD))
+            notePtr->lastTime *= ratio;
+        notePtr->time = newTime;
+        affectedCount.fetch_add(1, std::memory_order_relaxed);
+    });
+    get_shared_taskflow_executor().run(taskflow).wait();
+
+    crossWarning = cross.load();
+
+    if (affectedCount.load() > 0)
+        set_ooo();
+
+    return affectedCount.load();
+}
+
+int NotePoolManager::batch_randomize(char* outBuffer) {
+    array_sort_request();
+
+    struct NoteSnapshot {
+        nptr ptr;
+        std::string noteID;
+        double origPosition;
+        double origWidth;
+        int origSide;
+    };
+
+    std::vector<NoteSnapshot> snapshots;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
+        for (const auto& ptr : noteArray) {
+            if (ptr && ptr->type != static_cast<int>(NOTE_TYPE::SUB)) {
+                snapshots.push_back(
+                    {ptr, ptr->noteID, ptr->position, ptr->width, ptr->side});
+            }
+        }
+    }
+
+    if (snapshots.empty()) {
+        uint32_t zero = 0;
+        std::memcpy(outBuffer, &zero, sizeof(uint32_t));
+        return 0;
+    }
+
+    tf::Taskflow taskflow;
+    taskflow.for_each_index(
+        size_t{0}, snapshots.size(), size_t{1}, [&](size_t i) {
+            thread_local std::mt19937 rng(std::random_device{}());
+            std::uniform_real_distribution<double> posDist(0.0, 5.0);
+            std::uniform_int_distribution<int> sideDist(0, 2);
+            std::uniform_real_distribution<double> widthDist(0.5, 5.0);
+
+            auto& snap = snapshots[i];
+            snap.ptr->position = posDist(rng);
+            snap.ptr->side = sideDist(rng);
+            snap.ptr->width = widthDist(rng);
+        });
+    get_shared_taskflow_executor().run(taskflow).wait();
+
+    set_ooo();
+
+    // Write original props to output buffer for GML undo.
+    char* writePtr = outBuffer;
+    uint32_t snapCount = static_cast<uint32_t>(snapshots.size());
+    std::memcpy(writePtr, &snapCount, sizeof(uint32_t));
+    writePtr += sizeof(uint32_t);
+
+    for (const auto& snap : snapshots) {
+        std::memcpy(writePtr, snap.noteID.c_str(), snap.noteID.size() + 1);
+        writePtr += snap.noteID.size() + 1;
+        bitwrite(writePtr, snap.origSide);
+        bitwrite(writePtr, snap.origWidth);
+        bitwrite(writePtr, snap.origPosition);
+    }
+
+    return static_cast<int>(snapshots.size());
 }
 
 // Singleton getter.

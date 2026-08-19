@@ -859,36 +859,26 @@ function timing_fix(tpBefore, tpAfter) {
 			at = i;
 			break;
 		}
-	// Get affected time range.
-	var _timeL = tpBefore.time, _timeR = at+1 == l? 1000000000: timingPoints[at+1].time - 1;
+	// Get affected time range for the UI prompt.
+	var _timeL = tpBefore.time, _timeR = at+1 == l? objMain.musicLength: timingPoints[at+1].time - 1;
 	var _timeM = at - 1 < 0 ? -1000000000: timingPoints[at-1].time;
-	var nl = DyCore_get_note_count();
-	// Get affected notes.
-	var _affectedNotes = [];
-	
-	var _cross_timing_warning = false;
-	for(var i=0; i<nl; i++)
-		if(in_between(dyc_get_note_time_at_index(i), _timeL, _timeR))
-			array_push(_affectedNotes, dyc_get_note_at_index(i));
-	if(array_length(_affectedNotes) == 0)
-		return;
-	var _que = dyc_show_question(i18n_get("timing_fix_question", [_timeL, at+1 == l?objMain.musicLength:_timeR, array_length(_affectedNotes)]));
-	if(!_que) return;
-	nl = array_length(_affectedNotes);
-	// Caculate note's new time.
-	for(var i=0; i<nl; i++) {
-		/// @type {Struct.sNoteProp} 
-		var _prop = SnapDeepCopy(_affectedNotes[i]);
-		if(_prop.noteType == NOTE_TYPE.SUB) continue;
-		_prop.time = (_prop.time - tpBefore.time) * (tpAfter.beatLength / tpBefore.beatLength) + tpAfter.time;
-		if(_prop.noteType == NOTE_TYPE.HOLD)
-			_prop.lastTime *= (tpAfter.beatLength / tpBefore.beatLength);
-		if(_prop.time > _timeR)
-			_cross_timing_warning = true;
-		dyc_update_note(_prop, true);
+	// Count affected notes for the prompt (fast native call).
+	var _count = 0;
+	{
+		var _lo = DyCore_get_note_index_lower_bound(_timeL);
+		var _hi = DyCore_get_note_index_upper_bound(_timeR);
+		_count = max(_hi - _lo, 0);
 	}
+	if(_count == 0)
+		return;
+	var _que = dyc_show_question(i18n_get("timing_fix_question", [_timeL, _timeR, _count]));
+	if(!_que) return;
+	// Parallel rescale via DyCore.
+	var _result = dyc_timing_fix(tpBefore, tpAfter);
+	var _cross_timing_warning = _result < 0;
 	if(tpAfter.time < _timeM)
-		_cross_timing_warning = true;	// Timing's offset conflicts with another timing.
+		_cross_timing_warning = true;
+	dyc_active_props_cache_invalidate();
 	note_sort_request();
 	if(_cross_timing_warning)
 		announcement_warning("timing_fix_cross_warning");
@@ -953,18 +943,30 @@ function timing_point_reset() {
 
 #endregion
 
-/// surprise
+/// surprise — parallel C++ via DyCore
 function chart_randomize() {
-	for(var i=0, l=dyc_get_note_count(); i<l; i++) {
-		var _str = dyc_get_note_at_index_direct(i);
-		if(_str.noteType == 3) continue;
-		var origProp = SnapDeepCopy(_str);
-		_str.position = dyc_random(5);
-		_str.side = dyc_irandom_range(0, 2);
-		_str.width = dyc_random_range(0.5, 5);
-		operation_step_add(OPERATION_TYPE.MOVE, origProp, _str);
-		dyc_update_note(_str);
+	static _randBuffer = buffer_create(1024 * 128, buffer_grow, 1);
+	buffer_seek(_randBuffer, buffer_seek_start, 0);
+	var _count = dyc_chart_randomize(_randBuffer);
+	if(_count <= 0) return;
+	// Read original props from buffer and build undo records.
+	buffer_seek(_randBuffer, buffer_seek_start, 0);
+	var _bufCount = buffer_read(_randBuffer, buffer_u32);
+	for(var i = 0; i < _bufCount; i++) {
+		var _noteID = buffer_read(_randBuffer, buffer_string);
+		var _origSide = buffer_read(_randBuffer, buffer_s32);
+		var _origWidth = buffer_read(_randBuffer, buffer_f64);
+		var _origPosition = buffer_read(_randBuffer, buffer_f64);
+		var _origProp = dyc_get_note(_noteID);
+		if(!is_undefined(_origProp)) {
+			var _beforeProp = _origProp.copy();
+			_beforeProp.side = _origSide;
+			_beforeProp.width = _origWidth;
+			_beforeProp.position = _origPosition;
+			operation_step_add(OPERATION_TYPE.MOVE, _beforeProp, _origProp);
+		}
 	}
+	dyc_active_props_cache_invalidate();
 	operation_merge_last_request(1, OPERATION_TYPE.RANDOMIZE);
 	note_sort_all(true);
 }
@@ -1565,19 +1567,12 @@ function editor_selected_centrialize() {
 	}
 }
 
-/// @description Fix all outbound notes.
+/// @description Fix all outbound notes. Parallel C++ via DyCore.
 function editor_fix_notes() {
-	var noteCount = dyc_get_note_count();
-	var outboundCount = 0;
-	for(var i=0; i<noteCount; i++) {
-		var note = dyc_get_note_at_index_direct(i);
-		if(note.noteType != NOTE_TYPE.SUB && note.is_outscreen()) {
-			note.position = clamp(note.position, 0, 5);
-			dyc_update_note(note, true);
+	var outboundCount = dyc_editor_fix_notes();
 
-			outboundCount++;
-		}
-	}
+	if(outboundCount > 0)
+		dyc_active_props_cache_invalidate();
 
 	show_debug_message($"Fixed {outboundCount} outbound notes.");
 	announcement_play(i18n_get("fix_complete", [string(outboundCount)]), 5000);

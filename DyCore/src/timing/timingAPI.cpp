@@ -64,3 +64,15 @@ DYCORE_API double DyCore_get_timing_points_last_modified_time() {
 DYCORE_API double DyCore_has_timing_point_at_time(double time) {
     return get_timing_manager().has_timing_point_at(time) ? 1 : 0;
 }
+
+DYCORE_API double DyCore_time_to_bar(double time) {
+    return get_timing_manager().time_to_bar(time);
+}
+
+DYCORE_API double DyCore_bar_to_time(double bar) {
+    return get_timing_manager().bar_to_time(bar);
+}
+
+DYCORE_API double DyCore_time_add_bar_delta(double time, double deltaBars) {
+    return get_timing_manager().time_add_bar_delta(time, deltaBars);
+}

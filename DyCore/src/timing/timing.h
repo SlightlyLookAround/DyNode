@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 #include <cstdint>
 #include <json.hpp>
 #include <string>
@@ -53,15 +54,29 @@ inline void from_json(const nlohmann::json& j, TimingPointImportView& view) {
     j.at("meter").get_to(view.tp.meter);
 }
 
+// Precomputed segment for O(log N) time<->bar conversions.
+struct TimingSegment {
+    double time;        // segment start time (ms)
+    double beatLength;  // ms per beat
+    int meter;          // time signature numerator
+    double barOffset;   // cumulative 1-based bar count at segment start
+};
+
 class TimingManager {
    private:
     std::vector<TimingPoint> timingPoints;
     bool outOfOrder = false;
     uint64_t lastModifiedTime = 0;
 
+    // Segment lookup table for fast time<->bar conversions.
+    std::vector<TimingSegment> segmentTable;
+    uint64_t segmentTableBuiltTime = 0;
+
     void mark_modified() {
         lastModifiedTime++;
     }
+
+    void rebuild_segment_table();
 
    public:
     uint64_t get_last_modified_time() const {
@@ -115,6 +130,11 @@ class TimingManager {
     void change_timing_point_at_time(double time, const TimingPoint& tp);
     void delete_timing_point_at_time(double time);
     void add_offset(double offset);
+
+    // O(log N) time<->bar conversions using segment lookup table.
+    double time_to_bar(double time);
+    double bar_to_time(double bar);
+    double time_add_bar_delta(double time, double deltaBars);
 };
 
 TimingManager& get_timing_manager();

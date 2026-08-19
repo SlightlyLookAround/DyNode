@@ -61,6 +61,14 @@ class NotePoolManager {
     int get_index_upperbound(double time);
     int get_index_lowerbound(double time);
 
+    // Batch operations — parallel processing via shared taskflow executor.
+    // All acquire shared lock to snapshot pointers, then release before parallel work.
+    int batch_fix_notes();                                             // clamp out-of-screen
+    int batch_timing_fix(double tpBeforeTime, double tpBeforeBeatLen,  // rescale BPM
+                         double tpAfterTime, double tpAfterBeatLen,
+                         double nextTPTime, bool &crossWarning);
+    int batch_randomize(char *outBuffer);  // randomize + write orig props
+
     const Note &operator[](int index);
 
    protected:
