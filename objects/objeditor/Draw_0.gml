@@ -3,49 +3,48 @@
 
 	var beatlineVisible = beatlineAlpha[0] + beatlineAlpha[1] + beatlineAlpha[2] > 0.01;
     var timingPoints = dyc_get_timingpoints();
-    
+
     if(array_length(timingPoints)) {
         var _nw = BASE_RES_W, _nh = BASE_RES_H;
         var nowTime = objMain.nowTime;
         var targetLineBelow = objMain.targetLineBelow + objMain.targetLineBelowH / 2;
         var targetLineBeside = objMain.targetLineBeside;
         var playbackSpeed = objMain.playbackSpeed;
-        
+
         beatlineSurf = surface_checkate(beatlineSurf, _nw, _nh);
         surface_set_target(beatlineSurf);
         draw_clear_alpha(c_black, 0);
-        
+
         // Beat Lines Analyze & Draw
-        
+
         var _nowat = 0, _pointscount = array_length(timingPoints);
         var _totalBeats = 0;
-        
+
         while(_nowat + 1 != _pointscount && timingPoints[_nowat+1].time <= nowTime) {
         	_totalBeats += ceil((timingPoints[_nowat+1].time - timingPoints[_nowat].time)
         		/(timingPoints[_nowat].beatLength*timingPoints[_nowat].meter))
         	_nowat ++;
         }
-            
-        
+
         var _nowTp = timingPoints[_nowat];
         var _nowBeats = floor((nowTime - _nowTp.time) / _nowTp.beatLength);
         var _nowTpTime = _nowTp.time;
         var _nextTpTime = (_nowat + 1 == _pointscount ? objMain.musicLength:timingPoints[_nowat+1].time)
-        
+
         var _nowhard = false, _noww, _nowl, _nowh;
         var _ny, _nyl, _nyr;
         var _shortestLengthOffset = 0;
         for(var _offsetIndex = 1; _offsetIndex < array_length(beatlineLengthOffset); _offsetIndex++)
             _shortestLengthOffset = min(_shortestLengthOffset, beatlineLengthOffset[_offsetIndex]);
-        _shortestLengthOffset -= 10; // Extra offset for very short beatlines (e.g. 1/64)
-        
+        _shortestLengthOffset -= 10;
+
             // Background Glow
             with(objMain) {
                 animCurvFaintEval = animcurve_channel_evaluate(
                     animCurvFaintChan, frac(frac((nowTime - _nowTp.time) / _nowTp.beatLength / _nowTp.meter)+1));
                 animCurvFaintEval = lerp(0.5, 1.0, animCurvFaintEval);
             }
-            
+
         if(beatlineVisible)
         while(((_nowTpTime - nowTime) * playbackSpeed <= _nh || _nowat == 0) && beatlineAlphaMul > 0.01) {
             for(var i = _nowBeats; i * _nowTp.beatLength + _nowTpTime + 1 < _nextTpTime && (i * _nowTp.beatLength + _nowTpTime - nowTime) * playbackSpeed <= _nh; i++) {
@@ -65,23 +64,20 @@
                             _nowl += _shortestLengthOffset - j;
                         if(_ny < 0 && _nyl > _nw / 2)
                             break;
-                        
+
                         var _defaultNonTrivialCol = c_grey;
                         var _ncol = (j <= array_length(beatlineColors)-1 && beatlineColors[j] != 0)
                             ? beatlineColors[j]
                             : _defaultNonTrivialCol;
-                        /// If beatline style is mono
                         if(beatlineStyleCurrent == BeatlineStyles.BS_MONO ||
                            beatlineStyleCurrent == BeatlineStyles.BS_MONOLONG) {
                            		_ncol = _nowhard ? c_white:c_ltgrey;
                            }
-                        /// If beatline style is long
                         if(beatlineStyleCurrent == BeatlineStyles.BS_LONG ||
                            beatlineStyleCurrent == BeatlineStyles.BS_MONOLONG) {
                            		_nowl = _nowhard ? beatlineHardLength : beatlineLengthLong;
                            }
-                        
-                        // draw_set_color(beatlineColors[j]);
+
                         // LR
                         if(_nyl > targetLineBeside && _nyl <= _nw / 2) {
                             if(beatlineAlpha[1]>0.01) {
@@ -90,23 +86,14 @@
                                     .Thickness(_noww)
                                     .Cap("round", "round")
                                     .Draw();
-                                    
-                                // draw_set_alpha(beatlineAlpha[1]);
-                                // draw_line_width(_nyl, _nh - targetLineBelow - _nowh, _nyl, _nh - targetLineBelow, _noww);
-                                
                             }
-                                
                             if(beatlineAlpha[2]>0.01) {
                                 CleanLine(_nyr, _nh - targetLineBelow - _nowh, _nyr, _nh - targetLineBelow)
                                     .Blend(_ncol, beatlineAlpha[2])
                                     .Thickness(_noww)
                                     .Cap("round", "round")
                                     .Draw();
-                                
-                                // draw_set_alpha(beatlineAlpha[2]);
-                                // draw_line_width(_nyr, _nh - targetLineBelow - _nowh, _nyr, _nh - targetLineBelow, _noww);
                             }
-                                
                         }
                         // Down
                         if(_ny <= _nh - targetLineBelow && _ny >= 0 && beatlineAlpha[0]>0.01) {
@@ -115,10 +102,7 @@
                                 .Thickness(_noww)
                                 .Cap("round", "round")
                                 .Draw();
-                            
-                            // draw_set_alpha(beatlineAlpha[0]);
-                            // draw_line_width(_nw / 2 - _nowl / 2, _ny, _nw / 2 + _nowl / 2, _ny, _noww);
-                            
+
                             if(i == 0 && k == 0) {
                                 scribble("BPM "+string_format(mspb_to_bpm(_nowTp.beatLength), 1, 2)+" "+string(_nowTp.meter)+"/4")
                                     .starting_format("mDynamix", c_white)
@@ -128,7 +112,7 @@
                                     .blend(c_white, beatlineAlpha[0])
                                     .draw(_nw/2, _ny+3);
                             }
-                            
+
                             if(_nowhard) {
                             	scribble(string_format(_totalBeats + round(i/_nowTp.meter) + 1, 1, 0))
                             		.align(fa_left, fa_center)
@@ -146,13 +130,13 @@
                             		.scale(0.75, 0.75)
                             		.blend(c_white, beatlineAlpha[0])
                             		.draw(beatlineSideInfoX + 10, _ny - 3);
-                            		
+
                             	CleanLine(beatlineSideInfoX, _ny, beatlineSideInfoX+beatlineSideInfoDivWidth, _ny)
                             		.Blend(c_ltgrey, beatlineAlpha[0])
                             		.Thickness(7)
                             		.Cap("round", "round")
                             		.Draw();
-                            	
+
                             	scribble(string_format(i - floor(i/_nowTp.meter)*_nowTp.meter, 1, 0)+"/4")
                             		.align(fa_left, fa_top)
                             		.starting_format("mDynamix", c_ltgrey)
@@ -163,7 +147,6 @@
                             }
                         }
                     }
-                    
                 }
             }
             _totalBeats += ceil((_nextTpTime - _nowTpTime) / (_nowTp.beatLength * _nowTp.meter));

@@ -152,16 +152,25 @@ function trianglify_generate(w, h, speedRange, cellSize=75, variance=0.75) {
 
 function trianglify_step(tri_struct) {
 	var _arr = tri_struct.points;
+	var _count = array_length(_arr);
+	if(_count == 0) return;
 	var dt = global.timeManager.get_delta() / 1000000;
-	for(var i=0; i<array_length(_arr); i++) {
-		var dx = _arr[i].vx * dt;
-		var dy = _arr[i].vy * dt;
-		if(!in_between(_arr[i].x + dx, 0, tri_struct.width))
-			_arr[i].vx = -_arr[i].vx;
-		if(!in_between(_arr[i].y + dy, 0, tri_struct.height))
-			_arr[i].vy = -_arr[i].vy;
-		_arr[i].x += dx;
-		_arr[i].y += dy;
+	static _stepBuf = buffer_create(4 + 375 * 32, buffer_grow, 1);
+	buffer_seek(_stepBuf, buffer_seek_start, 0);
+	buffer_write(_stepBuf, buffer_u32, _count);
+	for(var i = 0; i < _count; i++) {
+		buffer_write(_stepBuf, buffer_f64, _arr[i].x);
+		buffer_write(_stepBuf, buffer_f64, _arr[i].y);
+		buffer_write(_stepBuf, buffer_f64, _arr[i].vx);
+		buffer_write(_stepBuf, buffer_f64, _arr[i].vy);
+	}
+	dyc_trianglify_step(_stepBuf, dt, tri_struct.width, tri_struct.height);
+	buffer_seek(_stepBuf, buffer_seek_start, 4);
+	for(var i = 0; i < _count; i++) {
+		_arr[i].x = buffer_read(_stepBuf, buffer_f64);
+		_arr[i].y = buffer_read(_stepBuf, buffer_f64);
+		_arr[i].vx = buffer_read(_stepBuf, buffer_f64);
+		_arr[i].vy = buffer_read(_stepBuf, buffer_f64);
 	}
 }
 

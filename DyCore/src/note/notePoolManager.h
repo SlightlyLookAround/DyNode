@@ -68,6 +68,7 @@ class NotePoolManager {
                          double tpAfterTime, double tpAfterBeatLen,
                          double nextTPTime, bool &crossWarning);
     int batch_randomize(char *outBuffer);  // randomize + write orig props
+    std::string batch_find_duplicates();   // parallel hash + find duplicates
 
     const Note &operator[](int index);
 

@@ -916,3 +916,42 @@ function dyc_bar_to_time(bar) {
 function dyc_time_add_bar_delta(time, deltaBars) {
     return DyCore_time_add_bar_delta(time, deltaBars);
 }
+
+// ---------------------------------------------------------------------------
+// Batch operations: trianglify, dedup, sampling, beatlines
+// ---------------------------------------------------------------------------
+
+/// @description Parallel trianglify point animation update.
+/// @param {Id.Buffer} pointsBuf Buffer with point data [u32 count][count × (f64 x,y,vx,vy)].
+/// @param {Real} dt Delta time in seconds.
+/// @param {Real} width Boundary width.
+/// @param {Real} height Boundary height.
+/// @returns {Real} 0 on success.
+function dyc_trianglify_step(pointsBuf, dt, width, height) {
+    return DyCore_trianglify_step(buffer_get_address(pointsBuf), dt, width, height);
+}
+
+/// @description Find duplicate notes by content hash (excluding noteID).
+/// @returns {Array<String>} Array of duplicate noteIDs.
+function dyc_find_duplicate_notes() {
+    var _json = DyCore_find_duplicate_notes();
+    return json_parse(_json);
+}
+
+/// @description Batch note sampling with interpolation.
+/// @param {Id.Buffer} cpBuf Control points buffer.
+/// @param {Real} beatDiv Beat division.
+/// @param {Real} mode 0=linear, 1=cosine, 2=catmull-rom.
+/// @param {Id.Buffer} outBuf Output buffer.
+/// @returns {Real} Number of sample records.
+function dyc_sample_notes(cpBuf, beatDiv, mode, outBuf) {
+    return DyCore_sample_notes(buffer_get_address(cpBuf), beatDiv, mode, buffer_get_address(outBuf));
+}
+
+/// @description Batch compute beatline geometry data.
+/// @param {String} configJson JSON string with all parameters (nowTime, playbackSpeed, etc. + beatline config).
+/// @param {Id.Buffer} outBuf Output buffer.
+/// @returns {Real} Number of line descriptors.
+function dyc_compute_beatlines(configJson, outBuf) {
+    return DyCore_compute_beatlines(configJson, buffer_get_address(outBuf));
+}

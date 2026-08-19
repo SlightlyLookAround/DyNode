@@ -13,7 +13,9 @@
 #include <taskflow/algorithm/sort.hpp>
 #include <taskflow/taskflow.hpp>
 #include <thread>
+#include <unordered_set>
 #include <vector>
+#include <xxhash/xxhash.h>
 
 #include "bitio.h"
 #include "note.h"
@@ -630,6 +632,58 @@ int NotePoolManager::batch_randomize(char* outBuffer) {
     }
 
     return static_cast<int>(snapshots.size());
+}
+
+std::string NotePoolManager::batch_find_duplicates() {
+    static std::string resultJson;
+
+    array_sort_request();
+
+    const int count = get_note_count();
+    if (count <= 0) {
+        resultJson = "[]";
+        return resultJson;
+    }
+
+    struct NoteInfo {
+        std::string noteID;
+        XXH64_hash_t hash;
+    };
+
+    std::vector<NoteInfo> infos;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
+        for (const auto& ptr : noteArray) {
+            if (ptr && ptr->type != static_cast<int>(NOTE_TYPE::SUB)) {
+                infos.push_back({ptr->noteID, ptr->get_hash(false)});
+            }
+        }
+    }
+
+    if (infos.empty()) {
+        resultJson = "[]";
+        return resultJson;
+    }
+
+    std::unordered_set<XXH64_hash_t> seen;
+    std::vector<std::string> duplicateIDs;
+    seen.reserve(infos.size());
+
+    for (const auto& info : infos) {
+        if (!seen.insert(info.hash).second) {
+            duplicateIDs.push_back(info.noteID);
+        }
+    }
+
+    resultJson = "[";
+    for (size_t i = 0; i < duplicateIDs.size(); i++) {
+        if (i > 0)
+            resultJson += ",";
+        resultJson += "\"" + duplicateIDs[i] + "\"";
+    }
+    resultJson += "]";
+
+    return resultJson;
 }
 
 // Singleton getter.
