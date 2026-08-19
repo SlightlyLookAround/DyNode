@@ -341,16 +341,20 @@ static bool open_ffmpeg_pipe_utf8(FILE*& out, const std::string& cmdUtf8) {
 }
 
 void Recorder::writer_worker() {
-    while (recording_active || !frame_queue.empty()) {
+    while (recording_active || frame_queue_count > 0) {
         std::unique_lock<std::mutex> lock(queue_mutex);
         queue_cond.wait(
-            lock, [this] { return !frame_queue.empty() || !recording_active; });
+            lock, [this] { return frame_queue_count > 0 || !recording_active; });
 
-        if (!frame_queue.empty()) {
-            std::vector<char> frame_data = std::move(frame_queue.front());
-            frame_queue.pop();
+        if (frame_queue_count > 0) {
+            size_t head = frame_queue_head;
+            ++frame_queue_head;
+            if (frame_queue_head >= kFrameQueueCapacity)
+                frame_queue_head = 0;
+            --frame_queue_count;
             lock.unlock();
 
+            std::vector<char>& frame_data = frame_queue[head];
             if (ffmpeg_pipe) {
                 size_t written = fwrite(frame_data.data(), 1, frame_data.size(),
                                         ffmpeg_pipe);
@@ -458,11 +462,29 @@ int Recorder::push_frame(const void* frameData, int frameSize) {
     }
 
     try {
-        std::vector<char> frame_copy(static_cast<size_t>(frameSize));
-        memcpy(frame_copy.data(), frameData, static_cast<size_t>(frameSize));
+        // Reuse a pre-allocated slot from the fixed ring buffer. Instead of
+        // allocating a fresh 8.3 MB vector per frame, the writer pops a slot
+        // and the next push reuses the same memory—only one per-frame copy.
+        // If the queue is full (ffmpeg stalled), drop the oldest frame to
+        // stay bounded at kFrameQueueCapacity × frameSize.
+        std::vector<char> out;
+        out.resize(static_cast<size_t>(frameSize));
+        std::memcpy(out.data(), frameData, static_cast<size_t>(frameSize));
         {
             std::lock_guard<std::mutex> lock(queue_mutex);
-            frame_queue.push(std::move(frame_copy));
+            if (frame_queue.size() < kFrameQueueCapacity) {
+                frame_queue.resize(kFrameQueueCapacity);
+            }
+            if (frame_queue_count >= kFrameQueueCapacity) {
+                // Drop the oldest frame rather than growing unboundedly.
+                ++frame_queue_head;
+                if (frame_queue_head >= kFrameQueueCapacity)
+                    frame_queue_head = 0;
+                --frame_queue_count;
+            }
+            size_t tail = (frame_queue_head + frame_queue_count) % kFrameQueueCapacity;
+            frame_queue[tail] = std::move(out);
+            ++frame_queue_count;
         }
         queue_cond.notify_one();
         return FFMPEG_PUSH_FRAME_OK;

@@ -31,5 +31,3 @@ scribble(_cont[3])
     .draw(x, y - 60 - upButtonPadding);
 
 draw_set_alpha(1);
-
-surface_free_f(bgSurf);

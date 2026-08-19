@@ -1,21 +1,21 @@
 
 // Prevent flickering when seek the video to beginning.
 global.__DyCore_Video_Preparing_Flag = false;
+global.__DyCore_Video_FrameBuffer = -1;
+global.__DyCore_Video_FrameSurface = -999;
 
 function dyc_video_get_frame() {
-    static frameBuffer = -1;
-    static frameSurface = -999;
     var buffSize = DyCore_video_get_buffer_size();
     var syncMode = dyc_video_get_sync_mode();
 
-    if(!buffer_exists(frameBuffer) || buffer_get_size(frameBuffer) != buffSize) {
+    if(!buffer_exists(global.__DyCore_Video_FrameBuffer) || buffer_get_size(global.__DyCore_Video_FrameBuffer) != buffSize) {
         if(buffSize <= 0)
             return -1;
 
-        if(buffer_exists(frameBuffer))
-            buffer_resize(frameBuffer, buffSize);
+        if(buffer_exists(global.__DyCore_Video_FrameBuffer))
+            buffer_resize(global.__DyCore_Video_FrameBuffer, buffSize);
         else {
-            frameBuffer = buffer_create(buffSize, buffer_fixed, 1);
+            global.__DyCore_Video_FrameBuffer = buffer_create(buffSize, buffer_fixed, 1);
         }
     }
 
@@ -23,30 +23,30 @@ function dyc_video_get_frame() {
 
     if(syncMode) {
         var deltaTime = global.timeManager.get_delta() / 1000000; // in seconds
-        updated = DyCore_video_get_frame_sync(buffer_get_address(frameBuffer), buffSize, deltaTime);
+        updated = DyCore_video_get_frame_sync(buffer_get_address(global.__DyCore_Video_FrameBuffer), buffSize, deltaTime);
     }
     else {
-        updated = DyCore_video_get_frame(buffer_get_address(frameBuffer), buffSize);
+        updated = DyCore_video_get_frame(buffer_get_address(global.__DyCore_Video_FrameBuffer), buffSize);
     }
 
-    if(updated || !surface_exists(frameSurface)) {
-        buffer_set_used_size(frameBuffer, buffSize);
+    if(updated || !surface_exists(global.__DyCore_Video_FrameSurface)) {
+        buffer_set_used_size(global.__DyCore_Video_FrameBuffer, buffSize);
         var vw = DyCore_video_get_width();
         var vh = DyCore_video_get_height();
-        if(!surface_exists(frameSurface) || vw != surface_get_width(frameSurface) || vh != surface_get_height(frameSurface)) {
-            if(surface_exists(frameSurface))
-                surface_free(frameSurface);
-            frameSurface = surface_create(vw, vh);
+        if(!surface_exists(global.__DyCore_Video_FrameSurface) || vw != surface_get_width(global.__DyCore_Video_FrameSurface) || vh != surface_get_height(global.__DyCore_Video_FrameSurface)) {
+            if(surface_exists(global.__DyCore_Video_FrameSurface))
+                surface_free(global.__DyCore_Video_FrameSurface);
+            global.__DyCore_Video_FrameSurface = surface_create(vw, vh);
         }
 
-        buffer_set_surface(frameBuffer, frameSurface, 0);
+        buffer_set_surface(global.__DyCore_Video_FrameBuffer, global.__DyCore_Video_FrameSurface, 0);
         if(updated) global.__DyCore_Video_Preparing_Flag = false;
     }
 
     if(global.__DyCore_Video_Preparing_Flag)
         return -1;
 
-    return frameSurface;
+    return global.__DyCore_Video_FrameSurface;
 }
 
 function dyc_video_draw(x, y, alp) {
@@ -83,7 +83,15 @@ function dyc_video_draw(x, y, alp) {
 }
 
 function dyc_video_free() {
+    var _savedSurface = global.__DyCore_Video_FrameSurface;
+    var _savedBuffer = global.__DyCore_Video_FrameBuffer;
     DyCore_video_close();
+    if(_savedSurface > 0)
+        surface_free(_savedSurface);
+    if(_savedBuffer > 0)
+        buffer_delete(_savedBuffer);
+    global.__DyCore_Video_FrameSurface = -999;
+    global.__DyCore_Video_FrameBuffer = -1;
 }
 
 function dyc_video_seek_to(time) {

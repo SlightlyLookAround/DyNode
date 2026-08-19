@@ -229,7 +229,13 @@ bool VideoDecoder::write_latest_frame(IMFSample* pSample, size_t expectedSize) {
 bool VideoDecoder::make_sync_frame(IMFSample* pSample, LONGLONG timestamp,
                                    SyncFrame& outFrame, size_t expectedSize) {
     outFrame.timestampTicks = timestamp;
-    outFrame.pixels.resize(expectedSize);
+    // Reuse one of the preallocated buffers instead of resizing every frame.
+    // With kMaxSyncQueueFrames == 3 we never contend and each slot covers a
+    // different in-flight sync frame.
+    auto& buf = m_syncFrameBuffers[m_syncFrameBufIdx++ % kMaxSyncQueueFrames];
+    if (buf.size() != expectedSize)
+        buf.resize(expectedSize);
+    outFrame.pixels.swap(buf);
     return copy_pixels_from_sample(pSample, outFrame.pixels.data(),
                                    expectedSize);
 }
@@ -777,6 +783,17 @@ void VideoDecoder::close() {
     m_isFrameReady = false;
     m_isFinished = false;
     m_seekTarget = -1;
+    m_syncFrameBufIdx = 0;
+
+    // Free the pixel buffer so it doesn't linger at full video resolution
+    // across close/reopen cycles. It will be lazily resized on the next
+    // write_latest_frame call.
+    m_pixelBuffer.clear();
+    m_pixelBuffer.shrink_to_fit();
+    for (auto& buf : m_syncFrameBuffers) {
+        buf.clear();
+        buf.shrink_to_fit();
+    }
 
     print_debug_message("VideoDecoder::close completed.");
 }

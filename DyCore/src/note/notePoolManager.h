@@ -80,7 +80,11 @@ class NotePoolManager {
     void reclaim_memory();
     nptr get_note_pointer(const std::string &noteID);
 
-    std::array<std::byte, 64 * 1024 * 1024> initial_buffer;
+    // Reduced from 64 MB to 4 MB. The pool falls through to the new/delete
+    // resource for larger allocations; most charts need only a few MB of
+    // scratch space, so 4 MB is enough to absorb typical working-set growth
+    // without reserving 64 MB permanently.
+    std::array<std::byte, 4 * 1024 * 1024> initial_buffer;
     std::pmr::monotonic_buffer_resource monotonic_res;
     std::pmr::unsynchronized_pool_resource pool_res;
     std::pmr::list<nptr> noteMemoryList;

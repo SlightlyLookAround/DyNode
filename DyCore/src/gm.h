@@ -39,6 +39,10 @@ inline void to_json(json &j, const AsyncEvent &a) {
 extern std::queue<AsyncEvent> asyncEventQueue;
 extern std::mutex mtxSaveProject;
 
+// Maximum number of queued async events. Older events are dropped when
+// exceeded (e.g. during error spam) so the queue doesn't grow without bound.
+static constexpr size_t kAsyncEventQueueCapacity = 256;
+
 void throw_error_event(std::string error_info);
 void push_async_event(AsyncEvent asyncEvent);
 

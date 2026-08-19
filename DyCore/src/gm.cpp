@@ -10,12 +10,18 @@ std::mutex mtxAsyncEvents;
 // Pushes a general error event to the asynchronous event queue.
 void throw_error_event(std::string error_info) {
     std::lock_guard<std::mutex> lock(mtxAsyncEvents);
+    // Drop the oldest event when the queue is full so error spam can't
+    // exhaust memory.
+    while (asyncEventQueue.size() >= kAsyncEventQueueCapacity)
+        asyncEventQueue.pop();
     asyncEventQueue.push({GENERAL_ERROR, -1, error_info});
 }
 
 // Pushes an asynchronous event to the event queue.
 void push_async_event(AsyncEvent asyncEvent) {
     std::lock_guard<std::mutex> lock(mtxAsyncEvents);
+    while (asyncEventQueue.size() >= kAsyncEventQueueCapacity)
+        asyncEventQueue.pop();
     asyncEventQueue.push(asyncEvent);
 }
 

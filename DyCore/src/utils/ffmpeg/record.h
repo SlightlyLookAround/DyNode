@@ -58,7 +58,10 @@ class Recorder {
 
     // For async writing
     std::thread writer_thread;
-    std::queue<std::vector<char>> frame_queue;
+    static constexpr size_t kFrameQueueCapacity = 2;
+    std::vector<std::vector<char>> frame_queue;
+    size_t frame_queue_head = 0;
+    size_t frame_queue_count = 0;
     std::mutex queue_mutex;
     std::condition_variable queue_cond;
     bool recording_active = false;

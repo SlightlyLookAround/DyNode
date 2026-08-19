@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <atomic>
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -532,6 +533,11 @@ class VideoDecoder {
 
     std::vector<BYTE> m_pixelBuffer;  // Latest decoded frame in RGB32, consumed
                                       // by the host engine.
+    // Reusable scratch buffers for sync-mode frames. The decode thread writes
+    // into one slot and the queue moves the contents, so three buffers keep
+    // us from allocating per frame at video resolution.
+    std::array<std::vector<BYTE>, kMaxSyncQueueFrames> m_syncFrameBuffers;
+    size_t m_syncFrameBufIdx = 0;
     UINT m_width = 0;   // Cached frame width queried from Media Foundation.
     UINT m_height = 0;  // Cached frame height queried from Media Foundation.
     LONG m_stride = 0;  // Stride (step) for the video frame.

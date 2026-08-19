@@ -41,10 +41,7 @@ DYCORE_API double DyCore_compress_string(const char* str, char* targetBuffer,
     size_t fSize = strlen(str);
     size_t cBuffSize = ZSTD_compressBound(fSize);
 
-    auto fBuff = std::make_unique<char[]>(fSize);
     auto cBuff = std::make_unique<char[]>(cBuffSize);
-
-    memcpy(fBuff.get(), str, fSize);
 
     std::cout << "[DyCore] Start compressing..." << std::endl;
 
@@ -60,7 +57,7 @@ DYCORE_API double DyCore_compress_string(const char* str, char* targetBuffer,
                            (int)compressionLevel);
 
     size_t const cSize =
-        ZSTD_compress2(cctx, cBuff.get(), cBuffSize, fBuff.get(), fSize);
+        ZSTD_compress2(cctx, cBuff.get(), cBuffSize, str, fSize);
 
     std::cout << "[DyCore] Finish compressing, checking..." << std::endl;
 
