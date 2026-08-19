@@ -65,7 +65,8 @@ chartSideType = _metadata.sideType;
 
         // Audio offset correction.
         if(!global.recordManager.is_recording()) {
-            var curOffset = nowTime - sfmod_channel_get_position(channel);
+            cachedAudioPosition = sfmod_channel_get_position(channel);
+            var curOffset = nowTime - cachedAudioPosition;
             if(abs(curOffset) > 15 && abs(curOffset) < 50) {
                 nowTime += -curOffset * 0.05;
                 // if(DEBUG_MODE)

@@ -19,9 +19,9 @@
 #macro AUTOSAVE_TIME (global.autoSaveTime)	// in seconds
 #macro DYCORE_COMPRESSION_LEVEL (global.PROJECT_COMPRESSION_LEVEL)		// max = 22
 #macro DEBUG_MODE (debug_mode || global.DYCORE_DEBUG_BUILD)
-#macro FMOD_DSP_BUFFERSIZE (256)
+#macro FMOD_DSP_BUFFERSIZE (512)
 #macro FMOD_DSP_BUFFERCOUNT (4)
-#macro FMOD_DSP_APP_PITCHSHIFT_FFTSIZE (4096)
+#macro FMOD_DSP_APP_PITCHSHIFT_FFTSIZE (2048)
 math_set_epsilon(0.00000001);				// 1E-8
 
 global.DYCORE_DEBUG_BUILD = DyCore_is_debug_build() != 0;
@@ -122,7 +122,7 @@ display_reset(global.graphics.AA, global.graphics.VSync);
     
     // Initialize the system
     FMODGMS_Sys_Set_DSPBufferSize(FMOD_DSP_BUFFERSIZE, FMOD_DSP_BUFFERCOUNT);
-    FMODGMS_Sys_Initialize(32);
+    FMODGMS_Sys_Initialize(16);
     
     // Create the pitch shift effect
     global.__DSP_Effect = FMODGMS_Effect_Create(FMOD_DSP_TYPE.FMOD_DSP_TYPE_PITCHSHIFT);

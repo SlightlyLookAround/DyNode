@@ -1388,6 +1388,12 @@ function playview_pause_and_resume(forceResume = false) {
 
 #region FMOD Functions
 
+global.__cachedDspLatency = undefined;
+
+function sfmod_invalidate_dsp_latency_cache() {
+	global.__cachedDspLatency = undefined;
+}
+
 function sfmod_channel_set_position(pos, channel, spr) {
     pos = pos + global.FMOD_MP3_DELAY * objMain.usingMP3 + global.musicDelay;
 	pos += sfmod_get_dsp_latency();
@@ -1402,11 +1408,15 @@ function sfmod_channel_get_position(channel) {
 }
 
 function sfmod_get_dsp_latency() {
+	if(!is_undefined(global.__cachedDspLatency))
+		return global.__cachedDspLatency;
+
 	var outputSampleRate = FMODGMS_Sys_Get_SampleRate();
 	var dspLatency = FMOD_DSP_BUFFERSIZE / outputSampleRate * 1000 * (FMOD_DSP_BUFFERCOUNT - 1.5);
-	if(objMain.pitchshift_effect_enabled()) {
+	if(instance_exists(objMain) && objMain.pitchshift_effect_enabled()) {
 		dspLatency += FMOD_DSP_APP_PITCHSHIFT_FFTSIZE / outputSampleRate * 1000;
 	}
+	global.__cachedDspLatency = dspLatency;
 	return dspLatency;
 }
 

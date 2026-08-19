@@ -16,6 +16,8 @@ depth = 0;
     musicLength = 0;
     usingMP3 = false;			// For Latency Workaround
     usingPitchShift = false;
+    pitchShiftEffectActive = false;   // Track whether the DSP effect is currently on the channel
+    cachedAudioPosition = 0;          // Cached FMOD channel position to avoid redundant DLL calls per frame
 
 #region Time Sources
 	
@@ -484,15 +486,22 @@ function _create_channel() {
 function _set_channel_speed(spd) {
     FMODGMS_Chan_Set_Pitch(channel, spd);
     FMODGMS_Chan_Set_Volume(channel, volumeMain);
-	if(objMain.usingPitchShift && spd != 1) {
+
+    var _wantEffect = objMain.usingPitchShift && spd != 1;
+    if(_wantEffect) {
 		FMODGMS_Effect_Set_Parameter(global.__DSP_Effect, FMOD_DSP_PITCHSHIFT.FMOD_DSP_PITCHSHIFT_PITCH, 1.0/spd);
-		FMODGMS_Chan_Remove_Effect(channel, global.__DSP_Effect);
-		FMODGMS_Chan_Add_Effect(channel, global.__DSP_Effect, 1);
+		if(!pitchShiftEffectActive) {
+			FMODGMS_Chan_Add_Effect(channel, global.__DSP_Effect, 1);
+			pitchShiftEffectActive = true;
+			sfmod_invalidate_dsp_latency_cache();
+		}
 	}
-    else {
+    else if(pitchShiftEffectActive) {
     	FMODGMS_Chan_Remove_Effect(channel, global.__DSP_Effect);
+    	pitchShiftEffectActive = false;
+    	sfmod_invalidate_dsp_latency_cache();
     }
-	
+
     dyc_video_set_speed(spd);
     musicResyncRequest = true;
 }
