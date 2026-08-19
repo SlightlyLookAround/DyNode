@@ -387,9 +387,11 @@ function KeyBindManager() constructor {
     static _ensure_cache = function() {
         if(cacheFrame == global.frameCurrentTime) return;
         cacheFrame = global.frameCurrentTime;
-        // The keybind panel is modal: while it is open, every game binding is
-        // suppressed (Esc, Backspace, chords, ...) so panel keys never leak through.
-        cachePanelOpen = instance_exists(objKeybindPanel);
+        // The keybind panel and the toggle-mode overlay are both modal: while
+        // either is open, every game binding is suppressed (Esc, Backspace,
+        // chords, ...) so panel/overlay keys never leak through.
+        cachePanelOpen = instance_exists(objKeybindPanel)
+            || keybind_overlay_blocks_input();
         cachePressed = {};
         cacheHeld = {};
         for(var i=0; i<array_length(cacheVks); i++) {

@@ -31,6 +31,10 @@ for(var c=0; c<array_length(_ctxs); c++) {
 maxScroll = max(0, max(array_length(colA), array_length(colB)) * rowH - listH);
 maxRows = max(array_length(colA), array_length(colB));
 
+// Scrollbar drag state
+scrollDragging = false;
+scrollDragOffset = 0;
+
 function _draw_keybind_column(_list, _cx) {
     var _accent = theme_get().color;
     var _top = listY - rowH / 2;
