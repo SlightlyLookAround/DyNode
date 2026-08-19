@@ -5,6 +5,8 @@
 
 #include <exception>
 
+#include "utils/backgroundTasks.h"
+
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -316,8 +318,7 @@ void save_project(const char *filePath, double compressionLevel) {
     SaveProjectParams params;
     params.filePath.assign(filePath);
     params.compressionLevel = (int)compressionLevel;
-    std::thread t([=]() { __async_save_project(params); });
-    t.detach();
+    background_tasks::launch([params]() { __async_save_project(params); });
     return;
 }
 

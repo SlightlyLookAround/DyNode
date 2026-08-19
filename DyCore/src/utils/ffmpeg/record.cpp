@@ -504,6 +504,10 @@ int Recorder::push_frame(const void* frameData, int frameSize) {
 #endif
 }
 
+Recorder::~Recorder() {
+    finish_recording();
+}
+
 void Recorder::finish_recording() {
 #ifdef _WIN32
     if (recording_active) {

@@ -81,6 +81,7 @@ class Recorder {
     std::string usingDecoder = "";
 
    public:
+    ~Recorder();
     // Returns 0 on success, negative value on failure.
     int start_recording(const std::string& filename,
                         const std::string& musicPath, const int width,

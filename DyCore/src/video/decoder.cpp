@@ -465,6 +465,7 @@ VideoDecoder::VideoDecoder() {
 }
 
 VideoDecoder::~VideoDecoder() {
+    close();
     HRESULT hr = MFShutdown();
     if (FAILED(hr)) {
         print_debug_message(std::format(

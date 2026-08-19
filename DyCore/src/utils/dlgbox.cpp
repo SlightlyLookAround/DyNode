@@ -295,6 +295,15 @@ INT_PTR CALLBACK InputDialogProc(HWND hDlg, UINT message, WPARAM wParam,
             }
             break;
         }
+
+        case WM_DESTROY: {
+            HICON hIcon = reinterpret_cast<HICON>(
+                SendDlgItemMessage(hDlg, IDC_INFO_ICON, STM_GETICON, 0, 0));
+            if (hIcon) {
+                DestroyIcon(hIcon);
+            }
+            break;
+        }
     }
     return (INT_PTR)FALSE;
 }

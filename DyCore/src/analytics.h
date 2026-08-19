@@ -5,6 +5,7 @@
 #include <string>
 
 void init_analytics();
+void shutdown_analytics();
 
 void report_exception_error(const std::string exceptionType,
                             const std::exception& ex);

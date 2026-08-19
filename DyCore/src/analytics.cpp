@@ -9,6 +9,8 @@
 #include "config.h"
 #include "version.h"
 
+static bool s_sentryInitialized = false;
+
 void init_analytics() {
     std::string version = "DyNode@" + std::string(DYNODE_VERSION);
 
@@ -27,6 +29,14 @@ void init_analytics() {
         options, DYNODE_BUILD_TYPE == "RELEASE" ? "production" : "development");
 
     sentry_init(options);
+    s_sentryInitialized = true;
+}
+
+void shutdown_analytics() {
+    if (s_sentryInitialized) {
+        sentry_close();
+        s_sentryInitialized = false;
+    }
 }
 
 void report_exception_error(const std::string exceptionType,

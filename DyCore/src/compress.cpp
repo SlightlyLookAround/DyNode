@@ -139,7 +139,7 @@ string decompress_string(string str) {
 // @return A pointer to the decompressed string, or an error message.
 DYCORE_API const char* DyCore_decompress_string(const char* str,
                                                 double _sSize) {
-    static string returnBuffer;
+    static thread_local string returnBuffer;
     returnBuffer = decompress_string(str, _sSize);
 
     if (returnBuffer == "failed") {

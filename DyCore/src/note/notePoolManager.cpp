@@ -635,7 +635,7 @@ int NotePoolManager::batch_randomize(char* outBuffer) {
 }
 
 std::string NotePoolManager::batch_find_duplicates() {
-    static std::string resultJson;
+    static thread_local std::string resultJson;
 
     array_sort_request();
 

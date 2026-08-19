@@ -11,8 +11,11 @@
 #include "api.h"
 #include "config.h"
 #include "ffmpeg/base.h"
+#include "utils/backgroundTasks.h"
 #include "utils.h"
+#include "utils/ffmpeg/record.h"
 #include "version.h"
+#include "video/decoder.h"
 #include "window.h"
 
 #ifdef WIN32
@@ -117,4 +120,20 @@ DYCORE_API const char* DyCore_get_goog_api_secret() {
 
 DYCORE_API const char* DyCore_get_aptabase_app_key() {
     return APTABASE_APP_KEY.c_str();
+}
+
+// Shuts down all DyCore subsystems and releases resources.
+// Should be called by GameMaker before the DLL is unloaded.
+DYCORE_API void DyCore_shutdown() {
+    // 1. Stop video decoding (joins decode thread, releases COM objects).
+    VideoDecoder::get_instance().close();
+
+    // 2. Stop any active FFmpeg recording (joins writer thread, closes pipe).
+    get_recorder().finish_recording();
+
+    // 3. Join all background tasks (async save, audio loading, etc.).
+    background_tasks::join_all();
+
+    // 4. Flush and shut down Sentry analytics.
+    shutdown_analytics();
 }
