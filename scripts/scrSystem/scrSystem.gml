@@ -1356,6 +1356,12 @@ function playview_start_replay(callback_func = undefined) {
     	nowTime = -PLAYBACK_EMPTY_TIME;
     	animTargetTime = -PLAYBACK_EMPTY_TIME;
     	reset_scoreboard();
+
+		// Start benchmark sampling if enabled.
+		if (global.benchmarkEnabled) {
+			global.benchmarkRecording = true;
+			global.benchmarkSamples = [];
+		}
 	}
 }
 
@@ -1486,6 +1492,33 @@ function global_add_delay(delay) {
 function on_playback_end() {
 	if(global.recordManager.is_recording())
 		global.recordManager.finish_recording();
+
+	// Benchmark: calculate and display results.
+	if (global.benchmarkRecording) {
+		global.benchmarkRecording = false;
+		var _samples = global.benchmarkSamples;
+		var _count = array_length(_samples);
+
+		if (_count > 0) {
+			array_sort(_samples, true);
+			var _p1Index = max(0, floor(_count * 0.01));
+			var _low1p = _samples[_p1Index];
+
+			var _sum = 0;
+			var _i = 0;
+			repeat (_count) {
+				_sum += _samples[_i];
+				_i++;
+			}
+			var _avg = _sum / _count;
+
+			var _msg = i18n_get("benchmark_result")
+				     + " | " + i18n_get("benchmark_avg") + ": " + string_format(_avg, 1, 1)
+				     + " | 1% Low: " + string_format(_low1p, 1, 1)
+				     + " | " + i18n_get("benchmark_samples") + ": " + string(_count);
+			announcement_play(_msg, 8000, "benchmark_result");
+		}
+	}
 }
 
 #endregion

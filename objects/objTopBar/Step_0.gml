@@ -29,6 +29,17 @@ if(keycheck_down(vk_tab)) {
                 return !is_undefined(objMain.channel);
             }
             );
+        _inst = new Checkbox(
+            "benchmark",
+            _nw - layout.padding - layoutBar.w/2, layout.fromTop + 2*layout.paddingH,
+            layoutCheckbox.l, i18n_get("tab_benchmark"),
+            0, function (val) {
+                global.benchmarkEnabled = !val;
+                return !val;
+            }, function () {
+                return global.benchmarkEnabled;
+            }
+            );
         _inst = new Button(
             "record",
             _nw - layoutBar.w/2, layout.fromTop + layout.paddingH,

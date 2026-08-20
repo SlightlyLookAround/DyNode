@@ -247,3 +247,11 @@ projectTime += round(delta_time / 1000);
 		}
 
 #endregion
+
+#region Benchmark RFPS Sampling
+
+	if (global.benchmarkRecording && nowPlaying) {
+		array_push(global.benchmarkSamples, fps_real);
+	}
+
+#endregion

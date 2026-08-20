@@ -93,6 +93,10 @@ global.dycActivePropsFrame = -1;
 global.dycActivePropsCache = undefined;
 // Used to prevent multiple saves from happening at once.
 global.isSaving = false;
+// Benchmark mode: collect RFPS samples during preview playback.
+global.benchmarkEnabled = false;
+global.benchmarkRecording = false;
+global.benchmarkSamples = [];
 
 // Generate Temp Sprite
 
