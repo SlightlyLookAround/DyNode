@@ -4,6 +4,7 @@
 
 #include "gm.h"
 #include "notePoolManager.h"
+#include "note_json.h"
 #include "utils.h"
 
 using std::string;

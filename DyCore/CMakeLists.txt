@@ -186,6 +186,16 @@ set_target_properties(DyCore_objs PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # Ensure export macros are visible while compiling object files.
 target_compile_definitions(DyCore_objs PRIVATE DyCore_EXPORTS)
 
+# Precompiled headers to speed up compilation.
+target_precompile_headers(DyCore_objs PRIVATE
+    <string>
+    <vector>
+    <unordered_map>
+    <memory>
+    <functional>
+    "${CMAKE_SOURCE_DIR}/lib/json.hpp"
+)
+
 
 if(WIN32)
     set(DYCORE_RESOURCES res/resource.rc)
@@ -238,6 +248,15 @@ dycore_apply_common_target_settings(DyCore_tests)
 target_include_directories(DyCore_tests PRIVATE benchmarks)
 target_link_libraries(DyCore_tests PRIVATE doctest::doctest)
 
+target_precompile_headers(DyCore_tests PRIVATE
+    <string>
+    <vector>
+    <unordered_map>
+    <memory>
+    <functional>
+    "${CMAKE_SOURCE_DIR}/lib/json.hpp"
+)
+
 add_custom_command(TARGET DyCore_tests POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${SENTRY_DIR}/bin/sentry.dll"
@@ -270,6 +289,15 @@ if(DYCORE_BUILD_BENCHMARKS)
 
     dycore_apply_common_target_settings(DyCore_render_benchmark)
     target_include_directories(DyCore_render_benchmark PRIVATE benchmarks)
+
+    target_precompile_headers(DyCore_render_benchmark PRIVATE
+        <string>
+        <vector>
+        <unordered_map>
+        <memory>
+        <functional>
+        "${CMAKE_SOURCE_DIR}/lib/json.hpp"
+    )
 
     add_custom_command(TARGET DyCore_render_benchmark POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

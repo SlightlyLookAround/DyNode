@@ -5,6 +5,7 @@
 
 #include <exception>
 
+#include "note_json.h"
 #include "utils/backgroundTasks.h"
 
 #ifdef _WIN32
