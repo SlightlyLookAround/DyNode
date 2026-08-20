@@ -63,8 +63,8 @@ void NoteActivationManager::recalculate() {
             noteArray[i]->time >
                 timeRange.first +
                     (BASE_RES_W / 2.0 - JUDGE_LINE_SIDE_FROM_EDGE) / noteSpeed)
-            continue;
-        if (noteArray[i]->get_note_type() <= NOTE_TYPE::HOLD) {
+            [[unlikely]] continue;
+        if (noteArray[i]->get_note_type() <= NOTE_TYPE::HOLD) [[likely]] {
             activeNotes.push_back({noteArray[i]->time, noteArray[i]->noteID});
             if (noteArray[i]->get_note_type() == NOTE_TYPE::HOLD) {
                 activeHolds.push_back(

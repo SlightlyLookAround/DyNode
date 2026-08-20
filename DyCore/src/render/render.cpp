@@ -230,6 +230,13 @@ void draw_sprite(char*& vertBuf, const SpriteRenderData& renderData,
     // Draw the sprite using the calculated quad range.
     auto setting = sprite.drawSetting;
     switch (setting.type) {
+        case SPRITE_DRAW_TYPE::NORMAL: [[likely]] {
+            const auto& uv = renderData.quadUvs[0];
+            vertex_quad_write(vertBuf, rotate(leftUp), rotate(rightUp),
+                              rotate(leftDown), rotate(rightDown), uv[0], uv[1],
+                              uv[2], uv[3], color);
+            break;
+        }
         // Should enable tex_repeat setting.
         case SPRITE_DRAW_TYPE::REPEAT_VERT: {
             float current_y = 0.0f;
@@ -258,13 +265,6 @@ void draw_sprite(char*& vertBuf, const SpriteRenderData& renderData,
 
                 current_y += quad_h;
             }
-            break;
-        }
-        case SPRITE_DRAW_TYPE::NORMAL: {
-            const auto& uv = renderData.quadUvs[0];
-            vertex_quad_write(vertBuf, rotate(leftUp), rotate(rightUp),
-                              rotate(leftDown), rotate(rightDown), uv[0], uv[1],
-                              uv[2], uv[3], color);
             break;
         }
         case SPRITE_DRAW_TYPE::SEG_3: {
@@ -840,7 +840,7 @@ size_t render_active_notes(char* const vertexBuffer, double nowTime,
     const bool useParallelRendering =
         workspace.workerCount > 1 && sources.size() > 1 &&
         estimatedBytes >= MULTITHREAD_RENDERING_BYTE_THRESHOLD;
-    if (!useParallelRendering) {
+    if (!useParallelRendering) [[likely]] {
         char* out = vertexBuffer;
         for (const auto& source : sources) {
             draw_prepared(out, prepare_source(source));

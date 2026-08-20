@@ -54,7 +54,7 @@ class NotePoolManager {
     void sync_hold_note_length(const Note &note);
 
     int get_index(const std::string &noteID);
-    bool release_note(std::string noteID);
+    bool release_note(const std::string& noteID);
     bool release_note(const Note &note);
     void clear_notes();
     bool array_sort_request();

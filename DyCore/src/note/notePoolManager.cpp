@@ -94,7 +94,7 @@ const Note& NotePoolManager::get_note(const std::string& noteID) {
     nptr note_ptr;
     {
         std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
-        if (noteInfoMap.find(noteID) == noteInfoMap.end()) {
+        if (noteInfoMap.find(noteID) == noteInfoMap.end()) [[unlikely]] {
             throw std::runtime_error("Note not found: " + noteID);
         }
         note_ptr = get_note_pointer(noteID);
@@ -305,7 +305,7 @@ int NotePoolManager::get_index(const std::string& noteID) {
     return it->second.index;
 }
 
-bool NotePoolManager::release_note(std::string noteID) {
+bool NotePoolManager::release_note(const std::string& noteID) {
     std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
     auto it = noteInfoMap.find(noteID);
     if (it == noteInfoMap.end()) {
@@ -329,7 +329,7 @@ bool NotePoolManager::release_note(const Note& note) {
 
 bool NotePoolManager::array_sort_request() {
     std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
-    if (!arrayOutOfOrder) {
+    if (!arrayOutOfOrder) [[likely]] {
         return false;
     }
 
@@ -417,7 +417,7 @@ NotePoolManager::nptr NotePoolManager::get_note_pointer(
 
 int NotePoolManager::get_index_upperbound(double time) {
     std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
-    if (arrayOutOfOrder)
+    if (arrayOutOfOrder) [[unlikely]]
         throw std::runtime_error(
             "Note array is out of order, cannot get index directly.");
 
@@ -432,7 +432,7 @@ int NotePoolManager::get_index_upperbound(double time) {
 
 int NotePoolManager::get_index_lowerbound(double time) {
     std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
-    if (arrayOutOfOrder)
+    if (arrayOutOfOrder) [[unlikely]]
         throw std::runtime_error(
             "Note array is out of order, cannot get index directly.");
 

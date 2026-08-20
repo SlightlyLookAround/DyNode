@@ -58,11 +58,11 @@ std::string fallback_file_modification_timestamp() {
 }  // namespace
 
 // Prints a debug message to the console, prefixed with "[DyCore] ".
-void print_debug_message(std::string str) {
+void print_debug_message(const std::string& str) {
     // iostream output is not guaranteed to be atomic across threads; serialize
     // writes so log lines won't interleave.
     const std::scoped_lock lock(g_debug_print_mutex);
-    std::cout << "[DyCore] " << str << std::endl;
+    std::cout << "[DyCore] " << str << "\n";
 }
 void print_debug_message(std::wstring str) {
     print_debug_message(wstringToUtf8(str));

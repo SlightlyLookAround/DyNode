@@ -149,7 +149,7 @@ set(DYCORE_COMMON_INCLUDE_DIRS
 
 if(MSVC)
     message(STATUS "Compiler is MSVC or Clang-cl, applying MSVC-specific options")
-    set(DYCORE_RELEASE_OPT /O2 /Zi)
+    set(DYCORE_RELEASE_OPT /O2 /Ob3 /fp:fast /Zi)
 else()
     message(STATUS "Compiler is GCC/Clang (or other), applying GNU-style options")
     set(DYCORE_RELEASE_OPT -O3 -g -gcodeview)
