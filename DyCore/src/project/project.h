@@ -7,6 +7,7 @@
 #include <string>
 
 #include "audio.h"
+#include "colorKeyframe.h"
 #include "note.h"
 #include "timing.h"
 
@@ -41,6 +42,7 @@ struct Chart {
     ChartPath path;
     std::vector<Note> notes;
     std::vector<TimingPoint> timingPoints;
+    std::vector<ColorKeyframe> colorKeyframes;
 
     // Non-serialized fields
     AudioData audioData;
@@ -53,6 +55,7 @@ struct Project {
     std::string version;
     nlohmann::json metadata;
     std::vector<Chart> charts;
+    bool colorTimelineEnabled = true;
 };
 void to_json(nlohmann::json &j, const Project &project);
 void from_json(const nlohmann::json &j, Project &project);

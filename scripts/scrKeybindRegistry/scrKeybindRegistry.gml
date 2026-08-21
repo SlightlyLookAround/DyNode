@@ -18,6 +18,7 @@ function keybind_registry_init() {
     keybind_register("editor_toggle_grid_x", "editor", KBT_PRESS, ord("X"));
     keybind_register("editor_toggle_highlight", "editor", KBT_PRESS, ord("H"));
     keybind_register("editor_timing_point_create", "editor", KBT_PRESS, ord("Y"));
+    keybind_register("editor_color_timeline", "editor", KBT_PRESS, ord("Z"), { ctrl: true, shift: true });
     keybind_register("editor_undo", "editor", KBT_PRESS, ord("Z"), { ctrl: true });
     keybind_register("editor_redo", "editor", KBT_PRESS, ord("Y"), { ctrl: true });
     keybind_register("editor_default_width_mode", "editor", KBT_PRESS, ord("L"));

@@ -419,6 +419,9 @@ void to_json(nlohmann::json &j, const Chart &chart) {
     for (const auto &tp : chart.timingPoints) {
         j["timingPoints"].push_back(TimingPointExportView(tp));
     }
+    if (!chart.colorKeyframes.empty()) {
+        j["colorKeyframes"] = chart.colorKeyframes;
+    }
 }
 void from_json(const nlohmann::json &j, Chart &chart) {
     j.at("metadata").get_to(chart.metadata);
@@ -441,6 +444,12 @@ void from_json(const nlohmann::json &j, Chart &chart) {
         from_json(tp, view);
         chart.timingPoints.push_back(tpObj);
     }
+    chart.colorKeyframes.clear();
+    if (j.contains("colorKeyframes") && j["colorKeyframes"].is_array()) {
+        for (const auto &ck : j["colorKeyframes"]) {
+            chart.colorKeyframes.push_back(ck.get<ColorKeyframe>());
+        }
+    }
 }
 
 void to_json(nlohmann::json &j, const Project &project) {
@@ -448,9 +457,12 @@ void to_json(nlohmann::json &j, const Project &project) {
     j["metadata"] = project.metadata;
     j["charts"] = project.charts;
     j["formatVersion"] = DYN_FILE_FORMAT_VERSION;
+    if (!project.colorTimelineEnabled)
+        j["colorTimelineEnabled"] = false;
 }
 void from_json(const nlohmann::json &j, Project &project) {
     j.at("version").get_to(project.version);
     j.at("metadata").get_to(project.metadata);
     j.at("charts").get_to(project.charts);
+    project.colorTimelineEnabled = j.value("colorTimelineEnabled", true);
 }

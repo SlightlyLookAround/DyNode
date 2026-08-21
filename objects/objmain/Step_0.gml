@@ -225,6 +225,37 @@ projectTime += round(delta_time / 1000);
 	
 #endregion
 
+#region Color Timeline Update
+
+	// Drive themeColorCustom from color keyframes when Custom theme is active and enabled.
+	if(global.themeAt == 3 && dyc_color_timeline_get_enabled()) {
+		var _ckCount = dyc_color_keyframes_count();
+		if(_ckCount > 0) {
+			// Save original color on first timeline activation.
+			if(!variable_struct_exists(global, "__ckOriginalColor"))
+				global.__ckOriginalColor = global.themeColorCustom;
+			var _ckColor = dyc_color_keyframe_resolve(objMain.nowTime, global.themeColorCustom);
+			if(_ckColor != global.themeColorCustom)
+				theme_custom_set_color(_ckColor);
+		} else {
+			// No keyframes — restore original color if it was saved.
+			if(variable_struct_exists(global, "__ckOriginalColor")) {
+				if(global.themeColorCustom != global.__ckOriginalColor)
+					theme_custom_set_color(global.__ckOriginalColor);
+				variable_struct_remove(global, "__ckOriginalColor");
+			}
+		}
+	} else {
+		// Timeline disabled or not on Custom theme — restore and clean up.
+		if(variable_struct_exists(global, "__ckOriginalColor")) {
+			if(global.themeColorCustom != global.__ckOriginalColor)
+				theme_custom_set_color(global.__ckOriginalColor);
+			variable_struct_remove(global, "__ckOriginalColor");
+		}
+	}
+
+#endregion
+
 #region Side Hinter Update
 
 	sideHinterCheckTimer += global.timeManager.get_delta() / 1000;

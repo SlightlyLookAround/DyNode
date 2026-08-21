@@ -567,6 +567,78 @@ function dyc_timingpoints_add_offset(offset) {
     return DyCore_timing_points_add_offset(offset);
 }
 
+// =============================================================================
+// Color Keyframe API wrappers
+// =============================================================================
+
+function dyc_color_keyframes_count() {
+    return DyCore_color_keyframes_count();
+}
+
+/// @returns {Array<Struct>} Array of color keyframe structs {time, color, interp}.
+function dyc_color_keyframes_get_all() {
+    var _json = DyCore_color_keyframes_get_all();
+    if (_json == "" || _json == "[]") return [];
+    try {
+        return json_parse(_json);
+    } catch (e) {
+        show_debug_message("Error parsing color keyframes: " + string(e));
+        return [];
+    }
+}
+
+/// @param {Real} index
+/// @returns {Struct|undefined}
+function dyc_color_keyframe_get(index) {
+    var _json = DyCore_color_keyframe_get(index);
+    if (_json == "" || _json == "{}") return undefined;
+    try {
+        return json_parse(_json);
+    } catch (e) {
+        return undefined;
+    }
+}
+
+/// @param {Real} _time
+/// @param {Real} _color 0xRRGGBB
+/// @param {Real} _interp 0=SmoothHSV 1=SmoothRGB 2=Instant
+function dyc_color_keyframe_insert(_time, _color, _interp) {
+    return DyCore_color_keyframe_insert(_time, _color, _interp);
+}
+
+/// @param {Real} _time
+function dyc_color_keyframe_delete(_time) {
+    return DyCore_color_keyframe_delete(_time);
+}
+
+/// @param {Real} _time
+/// @param {Real} _newColor 0xRRGGBB
+/// @param {Real} _newInterp
+function dyc_color_keyframe_change(_time, _newColor, _newInterp) {
+    return DyCore_color_keyframe_change(_time, _newColor, _newInterp);
+}
+
+function dyc_color_keyframes_reset() {
+    return DyCore_color_keyframes_reset();
+}
+
+/// @param {Real} _time
+/// @param {Real} _baseColor 0xRRGGBB fallback
+/// @returns {Real} Resolved color at the given time.
+function dyc_color_keyframe_resolve(_time, _baseColor) {
+    return DyCore_color_keyframe_resolve(_time, _baseColor);
+}
+
+/// @returns {Bool} Whether the color timeline is enabled.
+function dyc_color_timeline_get_enabled() {
+    return DyCore_color_timeline_get_enabled() > 0;
+}
+
+/// @param {Bool} enabled
+function dyc_color_timeline_set_enabled(enabled) {
+    DyCore_color_timeline_set_enabled(enabled ? 1 : 0);
+}
+
 function dyc_project_get_version() {
     return DyCore_get_project_version();
 }

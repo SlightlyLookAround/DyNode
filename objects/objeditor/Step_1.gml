@@ -83,6 +83,10 @@ editorSelectMultiple = editorSelectCount > 1;
         timing_point_create(true);
     }
 
+    if(bind_down("editor_color_timeline")) {
+        color_timeline_panel_toggle();
+    }
+
     if(bind_down("editor_undo")) {
         operation_undo();
     }

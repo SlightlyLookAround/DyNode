@@ -502,6 +502,15 @@ function operation_get_name(opsType) {
 		case OPERATION_TYPE.EXPR:
 			_result = "ops_name_expr";
 			break;
+		case OPERATION_TYPE.CKADD:
+			_result = "ops_name_ckadd";
+			break;
+		case OPERATION_TYPE.CKREMOVE:
+			_result = "ops_name_ckremove";
+			break;
+		case OPERATION_TYPE.CKCHANGE:
+			_result = "ops_name_ckchange";
+			break;
 	}
 	return i18n_get(_result);
 }
@@ -626,6 +635,15 @@ function operation_do(_type, _from, _to = -1, _safe_ = false) {
 		case OPERATION_TYPE.OFFSET:
 			map_add_offset(_from);
 			break;
+		case OPERATION_TYPE.CKADD:
+			dyc_color_keyframe_insert(_from.time, _from.color, _from.interp);
+			break;
+		case OPERATION_TYPE.CKREMOVE:
+			dyc_color_keyframe_delete(_from.time);
+			break;
+		case OPERATION_TYPE.CKCHANGE:
+			dyc_color_keyframe_change(_from.time, _from.color, _from.interp);
+			break;
 	}
 }
 
@@ -660,6 +678,15 @@ function operation_undo() {
 				case OPERATION_TYPE.OFFSET:
 					operation_do(OPERATION_TYPE.OFFSET, -_ops[i].fromProp);
 					break;
+				case OPERATION_TYPE.CKADD:
+					operation_do(OPERATION_TYPE.CKREMOVE, _ops[i].fromProp);
+					break;
+				case OPERATION_TYPE.CKREMOVE:
+					operation_do(OPERATION_TYPE.CKADD, _ops[i].fromProp);
+					break;
+				case OPERATION_TYPE.CKCHANGE:
+					operation_do(OPERATION_TYPE.CKCHANGE, _ops[i].toProp, _ops[i].fromProp);
+					break;
 				default:
 					show_error("Unknown operation type.", true);
 			}
@@ -683,6 +710,7 @@ function operation_redo() {
 			switch(_ops[i].opType) {
 				case OPERATION_TYPE.MOVE:
 				case OPERATION_TYPE.TPCHANGE:
+				case OPERATION_TYPE.CKCHANGE:
 					if(i == 0)
 						note_select_reset();
 					operation_do(_ops[i].opType, _ops[i].fromProp, _ops[i].toProp, l > MAX_SELECTION_LIMIT);
@@ -694,6 +722,8 @@ function operation_redo() {
 				case OPERATION_TYPE.TPADD:
 				case OPERATION_TYPE.TPREMOVE:
 				case OPERATION_TYPE.OFFSET:
+				case OPERATION_TYPE.CKADD:
+				case OPERATION_TYPE.CKREMOVE:
 					operation_do(_ops[i].opType, _ops[i].fromProp);
 					break;
 				default:
@@ -943,6 +973,133 @@ function timing_point_duplicate(_time) {
 // Reset the "timingPoints" array
 function timing_point_reset() {
     dyc_timingpoints_reset();
+}
+
+#endregion
+
+#region COLOR KEYFRAME FUNCTION
+
+function color_keyframe_count() {
+	return dyc_color_keyframes_count();
+}
+
+/// Interactively create a color keyframe.
+/// If exactly one note is selected, uses that note's time.
+/// Otherwise uses the current playback time.
+function color_keyframe_create(_record = false) {
+	var _time = objMain.nowTime;
+	if(editor_select_count() == 1) {
+		with(objNote)
+			if(stateType == NOTE_STATES.SELECTED)
+				_time = time;
+	}
+	_time = string_digits(get_string_i18n("color_timeline_q_time", string_format(_time, 1, 0)));
+	if(_time == "") return;
+	_time = real(_time);
+
+	var _colorStr = string_upper(string_trim(get_string_i18n("color_timeline_q_color", "FFFFFF")));
+	if(_colorStr == "") return;
+	_colorStr = string_replace(_colorStr, "#", "");
+	var _validHex = "0123456789ABCDEF";
+	var _hexValid = true;
+	if(string_length(_colorStr) != 6) {
+		_hexValid = false;
+	} else {
+		for(var _hi = 1; _hi <= 6; _hi++) {
+			if(string_pos(string_char_at(_colorStr, _hi), _validHex) == 0) {
+				_hexValid = false;
+				break;
+			}
+		}
+	}
+	if(!_hexValid) {
+		announcement_error("Invalid color format. Use RRGGBB hex.");
+		return;
+	}
+	var _color = rgb_hex_to_gml(real("0x" + _colorStr));
+
+	var _interpStr = string_digits(get_string_i18n("color_timeline_q_interp", "0"));
+	if(_interpStr == "") return;
+	var _interp = clamp(real(_interpStr), 0, 2);
+
+	dyc_color_keyframe_insert(_time, _color, _interp);
+	if(_record)
+		operation_step_add(OPERATION_TYPE.CKADD, { time: _time, color: _color, interp: _interp }, -1);
+
+	announcement_play(i18n_get("color_timeline_add_success", [format_time_ms(_time)]), 5000);
+}
+
+/// Edit an existing color keyframe.
+function color_keyframe_change(_time, _record = false) {
+	var _kf = undefined;
+	var _all = dyc_color_keyframes_get_all();
+	for(var i = 0; i < array_length(_all); i++) {
+		if(abs(_all[i].time - _time) < 1.0) {
+			_kf = _all[i];
+			break;
+		}
+	}
+	if(_kf == undefined) {
+		announcement_error("Color keyframe not found.");
+		return;
+	}
+
+	var _hexColor = color_to_hex(_kf.color);
+	var _current_setting = $"{string_format(_kf.time, 1, 0)} , {_hexColor} , {_kf.interp}";
+
+	var _setting = dyc_get_string(i18n_get("color_timeline_change_prompt"), _current_setting);
+	if(_setting == _current_setting || _setting == "") return;
+
+	try {
+		var _arr = string_split(_setting, ",", true);
+		var _ntime = real(string_digits(_arr[0]));
+		var _ncolorStr = string_upper(string_trim(_arr[1]));
+		_ncolorStr = string_replace(_ncolorStr, "#", "");
+		var _ncolor = rgb_hex_to_gml(real("0x" + _ncolorStr));
+		var _ninterp = clamp(real(string_digits(_arr[2])), 0, 2);
+
+		var _oldKf = { time: _kf.time, color: _kf.color, interp: _kf.interp };
+
+		// If time changed, delete old first.
+		if(abs(_ntime - _kf.time) >= 1.0)
+			dyc_color_keyframe_delete(_kf.time);
+
+		dyc_color_keyframe_insert(_ntime, _ncolor, _ninterp);
+
+		if(_record)
+			operation_step_add(OPERATION_TYPE.CKCHANGE, _oldKf, { time: _ntime, color: _ncolor, interp: _ninterp });
+
+		announcement_play(i18n_get("color_timeline_change_success"), 5000);
+	} catch (e) {
+		announcement_error("Color keyframe edit error:\n[scale,0.5]" + string(e));
+	}
+}
+
+/// Delete a color keyframe at the given time.
+function color_keyframe_delete(_time, _record = false) {
+	var _kf = undefined;
+	var _all = dyc_color_keyframes_get_all();
+	for(var i = 0; i < array_length(_all); i++) {
+		if(abs(_all[i].time - _time) < 1.0) {
+			_kf = _all[i];
+			break;
+		}
+	}
+	if(_kf == undefined) return;
+
+	dyc_color_keyframe_delete(_time);
+	if(_record)
+		operation_step_add(OPERATION_TYPE.CKREMOVE, _kf, -1);
+
+	announcement_play(i18n_get("color_timeline_delete_success", [format_time_ms(_time)]), 5000);
+}
+
+/// Get the resolved color for the current playback time.
+/// Returns undefined if not on Custom theme.
+function color_keyframe_get_current_color() {
+	if(global.themeAt != 3) return undefined;
+	if(dyc_color_keyframes_count() == 0) return global.themeColorCustom;
+	return dyc_color_keyframe_resolve(objMain.nowTime, global.themeColorCustom);
 }
 
 #endregion

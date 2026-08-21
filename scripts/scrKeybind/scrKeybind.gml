@@ -391,6 +391,7 @@ function KeyBindManager() constructor {
         // either is open, every game binding is suppressed (Esc, Backspace,
         // chords, ...) so panel/overlay keys never leak through.
         cachePanelOpen = instance_exists(objKeybindPanel)
+            || instance_exists(objColorTimeline)
             || keybind_overlay_blocks_input();
         cachePressed = {};
         cacheHeld = {};
@@ -914,5 +915,20 @@ function keybind_panel_toggle() {
     }
     else {
         instance_create_depth(0, 0, -1000, objKeybindPanel);
+    }
+}
+
+function color_timeline_panel_open() {
+    if(!instance_exists(objColorTimeline))
+        instance_create_depth(0, 0, -1000, objColorTimeline);
+}
+
+function color_timeline_panel_toggle() {
+    if(instance_exists(objColorTimeline)) {
+        with(objColorTimeline)
+            instance_destroy();
+    }
+    else {
+        instance_create_depth(0, 0, -1000, objColorTimeline);
     }
 }

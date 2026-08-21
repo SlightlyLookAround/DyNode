@@ -11,6 +11,7 @@
 #include "note.h"
 #include "notePoolManager.h"
 #include "project.h"
+#include "colorKeyframe.h"
 #include "timing.h"
 #include "utils/backgroundTasks.h"
 #include "utils.h"
@@ -314,6 +315,88 @@ void ProjectManager::set_project_metadata(const nlohmann::json &meta) {
 nlohmann::json ProjectManager::get_project_metadata() const {
     std::shared_lock<std::shared_mutex> lock(mtx);
     return project.metadata;
+}
+
+// =============================================================================
+// Color Keyframe Management
+// =============================================================================
+
+void ProjectManager::get_color_keyframes(std::vector<ColorKeyframe> &out) {
+    std::shared_lock<std::shared_mutex> lock(mtx);
+    if (!check_current_chart_set()) return;
+    out = get_current_chart().colorKeyframes;
+}
+
+void ProjectManager::set_color_keyframes(
+    const std::vector<ColorKeyframe> &kfs) {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    if (!check_current_chart_set()) return;
+    get_current_chart().colorKeyframes = kfs;
+    // Keep sorted.
+    auto &v = get_current_chart().colorKeyframes;
+    std::sort(v.begin(), v.end(),
+              [](const ColorKeyframe &a, const ColorKeyframe &b) {
+                  return a.time < b.time;
+              });
+}
+
+void ProjectManager::insert_color_keyframe(const ColorKeyframe &ck) {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    if (!check_current_chart_set()) return;
+    auto &kfs = get_current_chart().colorKeyframes;
+    // Replace if same time exists (within 1ms tolerance).
+    for (auto &existing : kfs) {
+        if (std::abs(existing.time - ck.time) < 1.0) {
+            existing = ck;
+            return;
+        }
+    }
+    kfs.push_back(ck);
+    std::sort(kfs.begin(), kfs.end(),
+              [](const ColorKeyframe &a, const ColorKeyframe &b) {
+                  return a.time < b.time;
+              });
+}
+
+void ProjectManager::delete_color_keyframe(double time) {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    if (!check_current_chart_set()) return;
+    auto &kfs = get_current_chart().colorKeyframes;
+    kfs.erase(std::remove_if(kfs.begin(), kfs.end(),
+                             [time](const ColorKeyframe &ck) {
+                                 return std::abs(ck.time - time) < 1.0;
+                             }),
+              kfs.end());
+}
+
+void ProjectManager::change_color_keyframe(double time, int color,
+                                           ColorInterp interp) {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    if (!check_current_chart_set()) return;
+    auto &kfs = get_current_chart().colorKeyframes;
+    for (auto &ck : kfs) {
+        if (std::abs(ck.time - time) < 1.0) {
+            ck.color = color;
+            ck.interp = interp;
+            return;
+        }
+    }
+}
+
+void ProjectManager::clear_color_keyframes() {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    if (!check_current_chart_set()) return;
+    get_current_chart().colorKeyframes.clear();
+}
+
+bool ProjectManager::get_color_timeline_enabled() {
+    std::shared_lock<std::shared_mutex> lock(mtx);
+    return project.colorTimelineEnabled;
+}
+
+void ProjectManager::set_color_timeline_enabled(bool enabled) {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    project.colorTimelineEnabled = enabled;
 }
 
 std::string ProjectManager::dump() const {

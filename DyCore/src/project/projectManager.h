@@ -4,6 +4,7 @@
 #include <mutex>
 #include <shared_mutex>
 
+#include "colorKeyframe.h"
 #include "json.hpp"
 #include "project.h"
 
@@ -70,6 +71,18 @@ class ProjectManager {
     // Loads audio data for the current chart.
     int load_chart_audio(const char *filePath);
     void unload_chart_audio();
+
+    // Color keyframe management (synced from Chart.colorKeyframes).
+    void get_color_keyframes(std::vector<ColorKeyframe> &out);
+    void set_color_keyframes(const std::vector<ColorKeyframe> &kfs);
+    void insert_color_keyframe(const ColorKeyframe &ck);
+    void delete_color_keyframe(double time);
+    void change_color_keyframe(double time, int color, ColorInterp interp);
+    void clear_color_keyframes();
+
+    // Color timeline toggle.
+    bool get_color_timeline_enabled();
+    void set_color_timeline_enabled(bool enabled);
 
     std::string dump() const;
 };

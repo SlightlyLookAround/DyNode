@@ -679,6 +679,27 @@ function color_invert(col) {
 	return make_color_rgb(_r, _g, _b);
 }
 
+/// @param {Real} col GML color (BGR integer)
+/// @returns {String} 6-char uppercase hex string (RRGGBB)
+function color_to_hex(col) {
+	var _r = color_get_red(col);
+	var _g = color_get_green(col);
+	var _b = color_get_blue(col);
+	var _hex = "0123456789ABCDEF";
+	return string_char_at(_hex, (_r >> 4) + 1) + string_char_at(_hex, (_r & 15) + 1)
+	     + string_char_at(_hex, (_g >> 4) + 1) + string_char_at(_hex, (_g & 15) + 1)
+	     + string_char_at(_hex, (_b >> 4) + 1) + string_char_at(_hex, (_b & 15) + 1);
+}
+
+/// @param {Real} rgb A 24-bit integer parsed from an RRGGBB hex string.
+/// @returns {Real} The equivalent GML color (BGR integer).
+function rgb_hex_to_gml(rgb) {
+	var _r = (rgb >> 16) & 0xFF;
+	var _g = (rgb >> 8) & 0xFF;
+	var _b = rgb & 0xFF;
+	return make_color_rgb(_r, _g, _b);
+}
+
 function assert(expression) {
 	if(!expression)
 		throw "Assertion Failed.";

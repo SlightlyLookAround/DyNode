@@ -164,6 +164,7 @@
     {"id":{"name":"__SnitchController","path":"objects/__SnitchController/__SnitchController.yy",},},
     {"id":{"name":"objAnnouncement","path":"objects/objAnnouncement/objAnnouncement.yy",},},
     {"id":{"name":"objChain","path":"objects/objChain/objChain.yy",},},
+    {"id":{"name":"objColorTimeline","path":"objects/objColorTimeline/objColorTimeline.yy",},},
     {"id":{"name":"objConsole","path":"objects/objConsole/objConsole.yy",},},
     {"id":{"name":"objCredits","path":"objects/objCredits/objCredits.yy",},},
     {"id":{"name":"objEditor","path":"objects/objEditor/objEditor.yy",},},

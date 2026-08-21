@@ -31,6 +31,9 @@ enum OPERATION_TYPE {
     TPADD,
     TPREMOVE,
     TPCHANGE,
+    CKADD,
+    CKREMOVE,
+    CKCHANGE,
     OFFSET,
     CUT, // special
     ATTACH, // special
