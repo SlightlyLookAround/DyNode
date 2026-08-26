@@ -231,6 +231,10 @@
         "sampling_same_time_error": "サンプリング操作では、同時刻のノートは許可されていません。",
         "particles_setting_full": "すべて表示",
         "particles_setting_low": "パーティクルをオフ",
-        "particles_setting_off": "すべてオフ"
+        "particles_setting_off": "すべてオフ",
+        "tab_particle_density": "パーティクル量",
+        "particle_density_low": "低",
+        "particle_density_mid": "中",
+        "particle_density_high": "強"
     }
 }

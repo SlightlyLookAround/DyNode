@@ -1190,12 +1190,14 @@ function load_config() {
 	_check_set(_con, "autoSaveTime");
 	_check_set(_con, "analytics");
 	_check_set(_con, "particleEffects");
+	_check_set(_con, "particleDensity");
 	_check_set(_con, "PROJECT_COMPRESSION_LEVEL");
 	if(variable_struct_exists(_con, "keybinds") && variable_global_exists("__KeyBindManager"))
 		global.__KeyBindManager.load_from_config(variable_struct_get(_con, "keybinds"));
 	// Clamp the offset correction.
 	global.offsetCorrection = max(0, global.offsetCorrection)
 	global.autoSaveTime = max(1, global.autoSaveTime);
+	global.particleDensity = clamp(global.particleDensity, 0, 2);
 	vars_init();
 
 	// Version check.
@@ -1243,6 +1245,7 @@ function save_config() {
 		autoSaveTime: global.autoSaveTime,
 		analytics: global.analytics,
 		particleEffects: global.particleEffects,
+		particleDensity: global.particleDensity,
 		PROJECT_COMPRESSION_LEVEL: global.PROJECT_COMPRESSION_LEVEL,
 		keybinds: keybind_serialize_config()
 	}, true));

@@ -40,6 +40,10 @@ if(keycheck_down(vk_tab)) {
                 return global.benchmarkEnabled;
             }
             );
+        _inst = new ParticleDensityButton(
+            "particledensity",
+            _nw - layoutBar.w/2, layout.fromTop + 2*layout.paddingH
+            );
         _inst = new Button(
             "record",
             _nw - layoutBar.w/2, layout.fromTop + layout.paddingH,

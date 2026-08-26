@@ -231,6 +231,10 @@
         "sampling_same_time_error": "採樣操作不允許存在時間相同的音符。",
         "particles_setting_full": "顯示全部",
         "particles_setting_low": "關閉粒子",
-        "particles_setting_off": "關閉全部"
+        "particles_setting_off": "關閉全部",
+        "tab_particle_density": "粒子數量",
+        "particle_density_low": "低",
+        "particle_density_mid": "中",
+        "particle_density_high": "強"
     }
 }

@@ -297,18 +297,28 @@ function note_get_pixel_width(note) {
 		 + _note_get_lrpadding_total(note.noteType);
 }
 
+/// @description Get particle count scaled by density setting.
+/// @param {Real} base The base particle count.
+/// @returns {Real} Scaled particle count (minimum 1).
+function particle_density_number(base) {
+	static _multipliers = [0.25, 0.5, 1.0];
+	return max(1, round(base * _multipliers[global.particleDensity]));
+}
+
 /// @param {Any} number The number of particles to emit.
 /// @param {Struct.sNoteProp} note The note's property.
 /// @param {Real} parttype The type of particle to emit. 0: Normal; 1: Hold
 function note_emit_particles(number, note, parttype) {
 	if(!objMain.nowPlaying)
 		return;
-	
+
 	if(global.particleEffects != 1)
 		return;
-	
+
 	if(part_particles_count(objMain.partSysNote) > MAX_PARTICLE_COUNT)
 		return;
+
+	number = particle_density_number(number);
         
 	// Emit Particles
 	var _x, _y, _x1, _x2, _y1, _y2;

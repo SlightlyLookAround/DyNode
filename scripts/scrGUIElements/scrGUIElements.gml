@@ -127,3 +127,57 @@ function BarColorChannel(_id, _x, _y, _channel) : Bar(_id, _x, _y, _channel, 0, 
 	aval = value;
 	atval = value;
 }
+
+function ParticleDensityButton(_id, _x, _y) : GUIElement() constructor {
+	__init(_id, _x, _y, "", undefined, undefined);
+
+	range = [0, 2];
+	_density_labels = [
+		i18n_get("particle_density_low"),
+		i18n_get("particle_density_mid"),
+		i18n_get("particle_density_high"),
+	];
+
+	get_value = function() {
+		return global.particleDensity;
+	}
+
+	get_active = function() {
+		return global.particleEffects == 1;
+	}
+
+	custom_action = function() {
+		global.particleDensity = (global.particleDensity + 1) % 3;
+		save_config();
+	}
+
+	static click = function() {
+		if(!active) return;
+		custom_action();
+		show_debug_message("ParticleDensityButton "+name+" clicked. Density: "+string(global.particleDensity));
+	}
+
+	static draw = function() {
+		if(!active) return;
+		var _x = acenter.x;
+		var _y = acenter.y;
+		var _density = global.particleDensity;
+		var _label = _density_labels[_density];
+
+		CleanRectangleXYWH(_x, _y, width*ascale, height*ascale)
+			.Blend(color, alpha)
+			.Border(0, color, 0)
+			.Rounding(rounding)
+			.Draw();
+
+		var _content = i18n_get("tab_particle_density") + ": " + _label;
+		if(has_cjk(_content)) _content = cjk_prefix() + _content;
+		scribble(_content, "GUI_"+name)
+			.starting_format(font, c_white)
+			.scale(GUI_MSDF_SCALE, GUI_MSDF_SCALE)
+			.align(fa_center, fa_middle)
+			.draw(_x, _y);
+	}
+
+	set_wh(300, 35);
+}
