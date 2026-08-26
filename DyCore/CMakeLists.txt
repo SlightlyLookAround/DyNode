@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.28)
 
 project("DyCore")
 
@@ -43,6 +43,27 @@ target_include_directories(delaunator PUBLIC "lib")
 
 add_library(xxhash STATIC lib/xxhash/xxhash.c)
 target_include_directories(xxhash PUBLIC "lib/xxhash")
+
+# mimalloc — high-performance memory allocator.
+# Built as a static library; on Windows/MT builds mimalloc automatically
+# overrides malloc/free/new/delete (see alloc-override.c: !defined(_DLL)).
+set(MI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_OBJECT OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_TESTS  OFF CACHE BOOL "" FORCE)
+# Compile mimalloc as C++. In C, `inline` without `extern` is an inline
+# definition that the compiler is not required to emit as a standalone
+# symbol; at -O3 clang omits them, causing link failures for cross-TU
+# calls (e.g. _mi_theap_malloc_zero). C++ inline semantics guarantee a
+# weak symbol is always available.
+set(MI_USE_CXX ON CACHE BOOL "" FORCE)
+add_subdirectory(lib/mimalloc EXCLUDE_FROM_ALL)
+
+# mimalloc's atomic operations intentionally cast between pointers and
+# integers (e.g. CAS on page->self).  Clang-cl treats these as errors
+# under strict mode; suppress the two relevant warnings.
+target_compile_options(mimalloc-static PRIVATE
+    -Wno-incompatible-pointer-types -Wno-int-conversion
+)
 
 FetchContent_Declare(
     glm
@@ -168,7 +189,7 @@ function(dycore_apply_common_target_settings target)
     )
 
     target_link_libraries(${target} PRIVATE 
-        zstd lua pugixml delaunator glm::glm xxhash sentry
+        mimalloc-static zstd lua pugixml delaunator glm::glm xxhash sentry
         $<$<PLATFORM_ID:Windows>:imm32>
     )
 endfunction()
