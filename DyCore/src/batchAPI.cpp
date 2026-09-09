@@ -227,36 +227,48 @@ DYCORE_API double DyCore_sample_notes(const char* controlPointsBuf,
         bitread(readPtr, cps[i].side);
     }
 
-    // Catmull-Rom needs ghost endpoints.
+    // Catmull-Rom: duplicate first/last as ghost endpoints.
+    // For cpCount >= 4: Lagrange 3-point extrapolation (matches original GML).
+    // For cpCount < 4: duplicate nearest endpoint (avoids degenerate extrapolation
+    // that references uncomputed ghost points or causes division by zero).
     struct CRPoint {
         double time, position, width;
     };
     std::vector<CRPoint> crPts;
     if (static_cast<int>(mode) == 2) {
         crPts.resize(cpCount + 2);
-        // Mirror ghost endpoints for time.
-        crPts[0].time = 2 * cps[1].time - cps[2].time;
-        crPts[cpCount + 1].time =
-            2 * cps[cpCount - 1].time - cps[cpCount - 2].time;
-        // Lagrange extrapolation for position/width.
-        crPts[0].position = lagrange_3point(
-            crPts[0].time, cps[1].time, cps[1].position, cps[2].time,
-            cps[2].position, cps[3].time, cps[3].position);
-        crPts[0].width = lagrange_3point(crPts[0].time, cps[1].time,
-                                         cps[1].width, cps[2].time,
-                                         cps[2].width, cps[3].time, cps[3].width);
-        crPts[cpCount + 1].position = lagrange_3point(
-            crPts[cpCount + 1].time, cps[cpCount - 1].time,
-            cps[cpCount - 1].position, cps[cpCount - 2].time,
-            cps[cpCount - 2].position, cps[cpCount - 3].time,
-            cps[cpCount - 3].position);
-        crPts[cpCount + 1].width = lagrange_3point(
-            crPts[cpCount + 1].time, cps[cpCount - 1].time,
-            cps[cpCount - 1].width, cps[cpCount - 2].time,
-            cps[cpCount - 2].width, cps[cpCount - 3].time,
-            cps[cpCount - 3].width);
         for (uint32_t i = 0; i < cpCount; i++) {
             crPts[i + 1] = {cps[i].time, cps[i].position, cps[i].width};
+        }
+        // Mirror ghost time values.
+        crPts[0].time = 2 * crPts[1].time - crPts[2].time;
+        crPts[cpCount + 1].time =
+            2 * crPts[cpCount].time - crPts[cpCount - 1].time;
+        // Position/width for ghost endpoints.
+        if (cpCount >= 4) {
+            crPts[0].position = lagrange_3point(
+                crPts[0].time, crPts[1].time, crPts[1].position,
+                crPts[2].time, crPts[2].position,
+                crPts[3].time, crPts[3].position);
+            crPts[0].width = lagrange_3point(
+                crPts[0].time, crPts[1].time, crPts[1].width,
+                crPts[2].time, crPts[2].width,
+                crPts[3].time, crPts[3].width);
+            crPts[cpCount + 1].position = lagrange_3point(
+                crPts[cpCount + 1].time,
+                crPts[cpCount].time, crPts[cpCount].position,
+                crPts[cpCount - 1].time, crPts[cpCount - 1].position,
+                crPts[cpCount - 2].time, crPts[cpCount - 2].position);
+            crPts[cpCount + 1].width = lagrange_3point(
+                crPts[cpCount + 1].time,
+                crPts[cpCount].time, crPts[cpCount].width,
+                crPts[cpCount - 1].time, crPts[cpCount - 1].width,
+                crPts[cpCount - 2].time, crPts[cpCount - 2].width);
+        } else {
+            crPts[0].position = crPts[1].position;
+            crPts[0].width = crPts[1].width;
+            crPts[cpCount + 1].position = crPts[cpCount].position;
+            crPts[cpCount + 1].width = crPts[cpCount].width;
         }
     }
 
@@ -267,8 +279,8 @@ DYCORE_API double DyCore_sample_notes(const char* controlPointsBuf,
     };
     std::vector<SampleRecord> results;
 
-    int segmentCount = static_cast<int>(cpCount) - 1;
-    for (int seg = 0; seg < segmentCount; seg++) {
+    auto& tm = get_timing_manager();
+    for (uint32_t seg = 0; seg + 1 < cpCount; seg++) {
         const auto& note = cps[seg];
         const auto& nextNote = cps[seg + 1];
         double segmentDuration = nextNote.time - note.time;
@@ -276,13 +288,12 @@ DYCORE_API double DyCore_sample_notes(const char* controlPointsBuf,
             continue;
 
         double currentTime = note.time;
-        auto& tm = get_timing_manager();
         TimingPoint currentTP;
-        tm.get_timing_point_at(currentTime, currentTP);
+        if (!tm.get_timing_point_at(currentTime, currentTP))
+            continue;
         currentTime += currentTP.beatLength / beatDiv;
         currentTime = snap_to_grid_time(currentTime, beatDiv);
 
-        int sampleCount = 0;
         while (currentTime < nextNote.time) {
             double ratio = (currentTime - note.time) / segmentDuration;
             double pos, wid;
@@ -321,13 +332,13 @@ DYCORE_API double DyCore_sample_notes(const char* controlPointsBuf,
             results.push_back({static_cast<uint32_t>(seg), currentTime, pos, wid});
 
             double prevTime = currentTime;
-            tm.get_timing_point_at(currentTime, currentTP);
+            if (!tm.get_timing_point_at(currentTime, currentTP))
+                break;
             currentTime += currentTP.beatLength / beatDiv;
             currentTime = snap_to_grid_time(currentTime, beatDiv);
-            sampleCount++;
 
             if (currentTime <= prevTime)
-                break;  // Safety: prevent infinite loop.
+                break;
         }
     }
 
