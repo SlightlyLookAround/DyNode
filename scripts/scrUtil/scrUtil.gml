@@ -632,44 +632,146 @@ function show_debug_message_safe(str) {
 }
 
 function version_cmp(vera, verb) {
+	// Parse a version string into { core, extras, pre }.
+	// core: leading numeric dotted segments (v-prefix optional; build metadata after space/+ dropped)
+	// extras: post-release counters — [-dev.N] / [-N commits] become [0, N]
+	// pre: true for prerelease tags such as -beta1 / -alpha / -rc2
 	var _version_deal = function (ver) {
 		ver = string_trim(ver);
-		// Find the first blank char and split the string.
 		var _pos = string_pos(" ", ver);
 		if(_pos > 0)
 			ver = string_copy(ver, 1, _pos-1);
+		_pos = string_pos("+", ver);
+		if(_pos > 0)
+			ver = string_copy(ver, 1, _pos-1);
 
-		ver = string_replace(ver, "-dev", "@");
-		ver = string_replace(ver, "-", "@.");
-		ver = string_replace(ver, "@", ".0");
-		ver = string_replace(ver, "v", "");
-		return string_split(ver, ".");
+		var _len = string_length(ver);
+		if(_len > 0 && string_lower(string_char_at(ver, 1)) == "v")
+			ver = string_delete(ver, 1, 1);
+		_len = string_length(ver);
+
+		var _core = [];
+		var i = 1;
+		while(i <= _len) {
+			var _ch = string_char_at(ver, i);
+			if(_ch >= "0" && _ch <= "9") {
+				var _j = i;
+				while(_j <= _len) {
+					var _c2 = string_char_at(ver, _j);
+					if(_c2 >= "0" && _c2 <= "9")
+						_j++;
+					else
+						break;
+				}
+				array_push(_core, int64(string_copy(ver, i, _j - i)));
+				i = _j;
+			} else if(_ch == "." && array_length(_core) > 0) {
+				i++;
+			} else {
+				break;
+			}
+		}
+
+		if(array_length(_core) == 0)
+			throw "invalid version: " + string(ver);
+
+		var _suffix = (i <= _len) ? string_copy(ver, i, _len - i + 1) : "";
+		var _is_pre = false;
+		var _extras = [];
+
+		var _read_uint = function (_s, _start) {
+			var _n = string_length(_s);
+			var _k = _start;
+			while(_k <= _n) {
+				var _c = string_char_at(_s, _k);
+				if(_c >= "0" && _c <= "9")
+					_k++;
+				else
+					break;
+			}
+			if(_k <= _start)
+				return [0, _start];
+			return [int64(string_copy(_s, _start, _k - _start)), _k];
+		};
+
+		if(_suffix != "") {
+			if(string_pos("-dev", _suffix) == 1) {
+				// Post-release dev counter: v0.1.19-dev.4 → [0, 4]
+				var _rest = string_delete(_suffix, 1, 4);
+				if(string_length(_rest) > 0 && string_char_at(_rest, 1) == ".")
+					_rest = string_delete(_rest, 1, 1);
+				var _read = _read_uint(_rest, 1);
+				_extras = [0, _read[0]];
+			} else if(string_char_at(_suffix, 1) == "-") {
+				var _body = string_delete(_suffix, 1, 1);
+				var _body_l = string_lower(_body);
+				// Rank so alpha < beta < pre/preview < rc < snapshot when cores match.
+				// Longer words first so "preview" is not swallowed by "pre".
+				var _pre_words = [
+					["alpha", 1], ["beta", 2], ["preview", 3], ["pre", 3],
+					["rc", 4], ["snapshot", 5]
+				];
+				var _matched = false;
+				for(var w = 0; w < array_length(_pre_words); w++) {
+					var _word = _pre_words[w][0];
+					if(string_pos(_word, _body_l) == 1) {
+						_is_pre = true;
+						_matched = true;
+						var _after = string_delete(_body, 1, string_length(_word));
+						var _pre_read = _read_uint(_after, 1);
+						var _pre_num = _pre_read[0];
+						var _post = 0;
+						if(string_char_at(_after, _pre_read[1]) == "-") {
+							var _post_read = _read_uint(_after, _pre_read[1] + 1);
+							_post = _post_read[0];
+						}
+						_extras = [_pre_words[w][1], _pre_num, _post];
+						break;
+					}
+				}
+				if(!_matched) {
+					// Numeric commits-since-tag: v0.1.19-5 → [0, 5]
+					var _read = _read_uint(_body, 1);
+					_extras = [0, _read[0]];
+				}
+			}
+			// Unknown non-numeric junk is ignored instead of erroring.
+		}
+
+		return { core: _core, extras: _extras, pre: _is_pre };
 	}
-	var arra = _version_deal(vera);
-	var arrb = _version_deal(verb);
-	var la = array_length(arra), lb = array_length(arrb);
-	try {
-		for(var i=0; i<la; i++)
-			arra[i] = int64(arra[i]);
-		for(var i=0; i<lb; i++)
-			arrb[i] = int64(arrb[i]);
-	} catch (e) {
-		announcement_error("Weird version number found in config/beatmap file.\n"+vera+"\n"+verb);
+
+	var _cmp_nums = function (_a, _b) {
+		var _la = array_length(_a), _lb = array_length(_b);
+		var _len = max(_la, _lb);
+		for(var i = 0; i < _len; i++) {
+			var _va = (i < _la) ? _a[i] : 0;
+			var _vb = (i < _lb) ? _b[i] : 0;
+			if(_va < _vb) return -1;
+			if(_va > _vb) return 1;
+		}
+		if(_la != _lb) return _la < _lb ? -1 : 1;
 		return 0;
 	}
-	
-	for(var i=0; i<la || i<lb; i++) {
-		if(i>=la && i<lb)
-			arra[i] = 0;
-		if(i<la && i>=lb)
-			arrb[i] = 0;
-		if(arra[i]<arrb[i])
-			return -1;
-		if(arra[i]>arrb[i])
-			return 1;
+
+	try {
+		var a = _version_deal(vera);
+		var b = _version_deal(verb);
+
+		var _c = _cmp_nums(a.core, b.core);
+		if(_c != 0)
+			return _c;
+
+		// Same core: prerelease ranks below the matching release.
+		if(a.pre != b.pre)
+			return a.pre ? -1 : 1;
+
+		return _cmp_nums(a.extras, b.extras);
+	} catch (e) {
+		// Keep original versions working; only log unparseable inputs in debug.
+		show_debug_message_safe("version_cmp: cannot parse version (" + string(e) + "): " + string(vera) + " / " + string(verb));
+		return 0;
 	}
-	if(la!=lb) return la<lb?-1:1;
-	return 0;
 }
 
 function color_invert(col) {
