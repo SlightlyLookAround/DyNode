@@ -191,6 +191,7 @@ function(dycore_apply_common_target_settings target)
     target_link_libraries(${target} PRIVATE 
         mimalloc-static zstd lua pugixml delaunator glm::glm xxhash sentry
         $<$<PLATFORM_ID:Windows>:imm32>
+        $<$<PLATFORM_ID:Windows>:winhttp>
     )
 endfunction()
 
@@ -267,7 +268,9 @@ add_executable(DyCore_tests
 
 dycore_apply_common_target_settings(DyCore_tests)
 target_include_directories(DyCore_tests PRIVATE benchmarks)
-target_link_libraries(DyCore_tests PRIVATE doctest::doctest)
+target_link_libraries(DyCore_tests PRIVATE doctest::doctest
+    $<$<PLATFORM_ID:Windows>:ws2_32>
+)
 
 target_precompile_headers(DyCore_tests PRIVATE
     <string>
@@ -299,34 +302,37 @@ doctest_discover_tests(DyCore_tests
     TEST_PREFIX "DyCore."
 )
 
-option(DYCORE_BUILD_BENCHMARKS "Build DyCore benchmark executables" OFF)
+option(DYCORE_BUILD_BENCHMARKS "Include DyCore benchmarks in the default build" OFF)
 
-if(DYCORE_BUILD_BENCHMARKS)
-    add_executable(DyCore_render_benchmark
-        $<TARGET_OBJECTS:DyCore_objs>
-        benchmarks/render_benchmark.cpp
-        benchmarks/render_benchmark_options.cpp
-    )
+# Keep benchmark compile commands available to clangd even when the default
+# build omits benchmarks. The target can still be built explicitly.
+add_executable(DyCore_render_benchmark
+    $<TARGET_OBJECTS:DyCore_objs>
+    benchmarks/render_benchmark.cpp
+    benchmarks/render_benchmark_options.cpp
+)
 
-    dycore_apply_common_target_settings(DyCore_render_benchmark)
-    target_include_directories(DyCore_render_benchmark PRIVATE benchmarks)
+dycore_apply_common_target_settings(DyCore_render_benchmark)
+target_include_directories(DyCore_render_benchmark PRIVATE benchmarks)
 
-    target_precompile_headers(DyCore_render_benchmark PRIVATE
-        <string>
-        <vector>
-        <unordered_map>
-        <memory>
-        <functional>
-        "${CMAKE_SOURCE_DIR}/lib/json.hpp"
-    )
+target_precompile_headers(DyCore_render_benchmark PRIVATE
+    <string>
+    <vector>
+    <unordered_map>
+    <memory>
+    <functional>
+    "${CMAKE_SOURCE_DIR}/lib/json.hpp"
+)
 
-    add_custom_command(TARGET DyCore_render_benchmark POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${SENTRY_DIR}/bin/sentry.dll"
-            "$<TARGET_FILE_DIR:DyCore_render_benchmark>/sentry.dll"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${SENTRY_DIR}/bin/crashpad_handler.exe"
-            "$<TARGET_FILE_DIR:DyCore_render_benchmark>/crashpad_handler.exe"
-        COMMENT "Copying Sentry runtime files for DyCore_render_benchmark"
-    )
+add_custom_command(TARGET DyCore_render_benchmark POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SENTRY_DIR}/bin/sentry.dll"
+        "$<TARGET_FILE_DIR:DyCore_render_benchmark>/sentry.dll"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SENTRY_DIR}/bin/crashpad_handler.exe"
+        "$<TARGET_FILE_DIR:DyCore_render_benchmark>/crashpad_handler.exe"
+    COMMENT "Copying Sentry runtime files for DyCore_render_benchmark"
+)
+if(NOT DYCORE_BUILD_BENCHMARKS)
+    set_target_properties(DyCore_render_benchmark PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()

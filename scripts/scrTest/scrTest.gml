@@ -584,12 +584,36 @@ function __test_lua() {
 }
 
 
+function __test_project_save_event_identity() {
+    var accepted = project_save_event_matches({requestId: 17, status: 0}, 17)
+        && project_save_event_matches({requestId: 17, status: -1}, 17);
+    var staleRejected = !project_save_event_matches({requestId: 16, status: 0}, 17)
+        && !project_save_event_matches({requestId: 16, status: -1}, 17)
+        && !project_save_event_matches({requestId: 17, status: 0}, 0)
+        && !project_save_event_matches({status: 0}, 17);
+    if(!accepted || !staleRejected)
+        throw "Project save completion identity regression";
+}
+
+function __test_timing_values() {
+    if(!timing_point_values_valid(-100, 250.5, 3)
+        || timing_point_values_valid(0, -500, 4)
+        || timing_point_values_valid(0, 0, 4)
+        || timing_point_values_valid(0, 500, 0)
+        || timing_point_values_valid(0, 500, -1)
+        || timing_point_values_valid(0, 500, 1.5)
+        || timing_point_values_valid(0, 500, 4294967300))
+        throw "Timing value validation regression";
+}
+
 function test_at_start() {
     show_debug_message("=====DEBUG======")
     
     __test_misc();
     __test_expr();
     __test_lua();
+    __test_project_save_event_identity();
+    __test_timing_values();
 
     var TEST_QUICK_SORT = false;
     var TEST_VERTEX_CONSTRUCTION = false;

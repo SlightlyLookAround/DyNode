@@ -1,5 +1,8 @@
 #pragma once
+#include <atomic>
+#include <condition_variable>
 #include <memory_resource>
+#include <mutex>
 #include <shared_mutex>
 #include <string>
 
@@ -10,7 +13,8 @@ inline constexpr int NOTES_ARRAY_PARALLEL_SORT_THRESHOLD = 10000;
 
 namespace tf {
 class Executor;
-}
+class Taskflow;
+}  // namespace tf
 
 // Shared taskflow executor for all parallel batch work in the core.
 // Creating a fresh executor per call would spin the thread pool up and down
@@ -23,8 +27,14 @@ class NotePoolManager {
    public:
     using nptr = std::shared_ptr<Note>;
 
-    NotePoolManager();
+    explicit NotePoolManager(size_t workerCount = 0);
     ~NotePoolManager();
+
+    // Shutdown rejects external submissions and drains submitted task graphs.
+    // It must not be called from a note worker or while holding a note lock.
+    void initialize_executor();
+    void shutdown_executor();
+    size_t executor_creation_count() const;
 
     NotePoolManager operator=(const NotePoolManager &other) = delete;
 
@@ -94,13 +104,23 @@ class NotePoolManager {
     // scratch space, so 4 MB is enough to absorb typical working-set growth
     // without reserving 64 MB permanently.
     std::array<std::byte, 4 * 1024 * 1024> initial_buffer;
+
+    void execute_tasks(tf::Taskflow &taskflow);
+    tf::Executor &initialize_executor_locked();
+    std::unique_ptr<tf::Executor> noteExecutor;
+    mutable std::mutex executorLifecycleMutex;
+    std::condition_variable executorIdle;
+    bool executorStopped = false;
+    size_t activeExecutorCalls = 0;
+    size_t executorCreationCount = 0;
+    size_t executorWorkerCount = 0;  // 0 keeps hardware concurrency.
     std::pmr::monotonic_buffer_resource monotonic_res;
     std::pmr::unsynchronized_pool_resource pool_res;
     std::pmr::list<nptr> noteMemoryList;
 
     std::unordered_map<std::string, NoteMemoryInfo> noteInfoMap;
     mutable std::shared_mutex mtxNoteOps;
-    bool arrayOutOfOrder = false;
+    std::atomic<bool> arrayOutOfOrder = false;
     int noteCount = 0;
 
    public:

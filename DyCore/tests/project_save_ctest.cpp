@@ -1,0 +1,242 @@
+#include <doctest/doctest.h>
+
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <future>
+#include <latch>
+#include <set>
+#include <string>
+
+#include "gm.h"
+#include "note.h"
+#include "project.h"
+#include "project/format/dyn.h"
+#include "projectManager.h"
+#include "timing.h"
+
+extern "C" double DyCore_save_project(const char*, double);
+extern "C" double DyCore_save_project_request(const char*, double);
+extern "C" double DyCore_has_async_event();
+extern "C" const char* DyCore_get_async_event();
+extern "C" double DyCore_chart_import_dyn(const char*, double, double);
+extern "C" double DyCore_chart_export_xml(const char*, double, double);
+
+namespace {
+struct SaveFixture {
+    std::filesystem::path dir =
+        std::filesystem::temp_directory_path() /
+        ("dynode_save_request_" +
+         std::to_string(
+             std::chrono::steady_clock::now().time_since_epoch().count()));
+    SaveFixture() {
+        initialize_project_saves();
+        std::filesystem::create_directory(dir);
+        while (DyCore_has_async_event() > 0) {
+            DyCore_get_async_event();
+        }
+        ProjectManager::inst().setup_default_chart();
+    }
+    ~SaveFixture() {
+        shutdown_project_saves();
+        ProjectManager::inst().setup_default_chart();
+        while (DyCore_has_async_event() > 0) {
+            DyCore_get_async_event();
+        }
+        std::error_code ec;
+        std::filesystem::remove_all(dir, ec);
+    }
+};
+
+void set_chart(const std::string& title, double time) {
+    auto& manager = ProjectManager::inst();
+    manager.setup_default_chart();
+    auto meta = manager.get_chart_metadata();
+    meta.title = title;
+    manager.set_chart_metadata(meta);
+    manager.set_version("save-test");
+    manager.set_project_metadata({{"marker", title}});
+    manager.set_chart_path({"music.ogg", "video.mp4", "image.png"});
+    get_timing_manager().add_timing_point({time, 500, 4});
+    Note note{};
+    note.noteID = title;
+    note.time = time + 100;
+    note.position = 2.5;
+    note.width = 1;
+    REQUIRE(insert_note(note) == 0);
+}
+
+void check_completion(uint64_t requestId, bool success) {
+    REQUIRE(DyCore_has_async_event() > 0);
+    const auto event = nlohmann::json::parse(DyCore_get_async_event());
+    CHECK(event.at("type") == PROJECT_SAVING);
+    CHECK(event.at("requestId") == requestId);
+    CHECK((event.at("status").get<int>() >= 0) == success);
+}
+}  // namespace
+
+TEST_CASE("ProjectSaveRequestDoesNotReadReplacementProject") {
+    SaveFixture fixture;
+    set_chart("A", 0);
+    auto first =
+        prepare_project_save((fixture.dir / "A.dyn").string().c_str(), 1);
+    set_chart("B", 1000);
+    auto second =
+        prepare_project_save((fixture.dir / "B.dyn").string().c_str(), 1);
+    REQUIRE(first.requestId != second.requestId);
+    REQUIRE(first.requestId > 0);
+    const auto firstId = first.requestId, secondId = second.requestId;
+
+    // Execute the real workers only after replacing all live project data.
+    // No scheduler timing assumptions: these are the requests save_project
+    // dispatches.
+    __async_save_project(std::move(first));
+    __async_save_project(std::move(second));
+    check_completion(firstId, false);
+    check_completion(secondId, true);
+    CHECK_FALSE(std::filesystem::exists(fixture.dir / "A.dyn"));
+
+    Project savedB;
+    REQUIRE(project_import_dyn((fixture.dir / "B.dyn").string().c_str(),
+                               savedB) == 0);
+    REQUIRE(savedB.charts.size() == 1);
+    CHECK(savedB.metadata.at("marker") == "B");
+    CHECK(savedB.charts[0].metadata.title == "B");
+    REQUIRE(savedB.charts[0].notes.size() == 1);
+    CHECK(savedB.charts[0].notes[0].time == 1100);
+    REQUIRE(savedB.charts[0].timingPoints.size() == 1);
+    CHECK(savedB.charts[0].timingPoints[0].time == 1000);
+    CHECK(savedB.charts[0].path.music == "music.ogg");
+    CHECK(ProjectManager::inst().get_chart_metadata().title == "B");
+}
+
+TEST_CASE("ProjectSaveCapturedDataSurvivesProjectSwitch") {
+    SaveFixture fixture;
+    set_chart("A", 0);
+    const auto generation = ProjectManager::inst().get_project_generation();
+    std::promise<void> captured;
+    auto ready = captured.get_future();
+    std::latch resume(1);
+    auto worker = std::async(std::launch::async, [&] {
+        auto snapshot = ProjectManager::inst().create_save_snapshot(generation);
+        captured.set_value();
+        resume.wait();
+        return nlohmann::json(snapshot);
+    });
+    ready.get();
+    set_chart("B", 1000);
+    resume.count_down();
+    const auto saved = worker.get();
+    CHECK(saved.at("metadata").at("marker") == "A");
+    CHECK(saved.at("charts")[0].at("metadata").at("title") == "A");
+    CHECK(saved.at("charts")[0].at("notes")[0].at("time") == 100);
+    CHECK(saved.at("charts")[0].at("timingPoints")[0].at("offset") == 0);
+}
+
+TEST_CASE("ProjectSaveCloseInvalidatesUnreadRequest") {
+    SaveFixture fixture;
+    set_chart("A", 0);
+    auto request =
+        prepare_project_save((fixture.dir / "A.dyn").string().c_str(), 1);
+    const auto requestId = request.requestId;
+    ProjectManager::inst().invalidate_pending_saves();
+    __async_save_project(std::move(request));
+    check_completion(requestId, false);
+    CHECK_FALSE(std::filesystem::exists(fixture.dir / "A.dyn"));
+}
+
+TEST_CASE("ProjectSaveFailureRetainsRequestIdentity") {
+    SaveFixture fixture;
+    set_chart("A", 0);
+    auto request = prepare_project_save(
+        (fixture.dir / "missing" / "A.dyn").string().c_str(), 1);
+    const auto requestId = request.requestId;
+    __async_save_project(std::move(request));
+    check_completion(requestId, false);
+    CHECK_FALSE(std::filesystem::exists(fixture.dir / "missing" / "A.dyn"));
+}
+
+TEST_CASE("ProjectSaveSerializationFailureRetainsRequestIdentity") {
+    SaveFixture fixture;
+    set_chart("A", 0);
+    auto request =
+        prepare_project_save((fixture.dir / "A.dyn").string().c_str(), 1);
+    auto meta = ProjectManager::inst().get_chart_metadata();
+    meta.title = std::string(1, static_cast<char>(0xff));
+    ProjectManager::inst().set_chart_metadata(meta);
+    const auto requestId = request.requestId;
+    __async_save_project(std::move(request));
+    check_completion(requestId, false);
+    CHECK_FALSE(std::filesystem::exists(fixture.dir / "A.dyn"));
+}
+
+TEST_CASE("ProjectSaveRejectedRequestDoesNotDispatchCompletion") {
+    SaveFixture fixture;
+    CHECK(DyCore_save_project_request(nullptr, 1) == -1);
+    CHECK(DyCore_save_project("", 1) == -1);
+    CHECK(DyCore_save_project_request(
+              (fixture.dir / "missing" / "A.dyn").string().c_str(), 1) == -1);
+    int count = 0;
+    while (DyCore_has_async_event() > 0) {
+        const auto event = nlohmann::json::parse(DyCore_get_async_event());
+        CHECK(event.at("type") == GENERAL_ERROR);
+        CHECK_FALSE(event.contains("requestId"));
+        ++count;
+    }
+    CHECK(count == 3);
+}
+
+TEST_CASE("ChartImportExportReportsFileFailures") {
+    SaveFixture fixture;
+    set_chart("export", 0);
+    const auto missing = fixture.dir / "missing" / "chart.xml";
+    CHECK(DyCore_chart_export_xml(missing.string().c_str(), 1, 0) == -1);
+    CHECK_FALSE(std::filesystem::exists(missing));
+    const auto output = fixture.dir / "chart.xml";
+    REQUIRE(DyCore_chart_export_xml(output.string().c_str(), 1, 0) == 0);
+    CHECK(std::filesystem::file_size(output) > 0);
+
+    CHECK(DyCore_chart_import_dyn(missing.string().c_str(), 1, 1) == -1);
+    const auto input = fixture.dir / "invalid.dyn";
+    for (const auto& content :
+         {std::string("{"), nlohmann::json(Project{}).dump()}) {
+        std::ofstream(input, std::ios::binary) << content;
+        CHECK(DyCore_chart_import_dyn(input.string().c_str(), 1, 1) == -1);
+    }
+    auto request =
+        prepare_project_save((fixture.dir / "valid.dyn").string().c_str(), 1);
+    __async_save_project(std::move(request));
+    REQUIRE(DyCore_chart_import_dyn(
+                (fixture.dir / "valid.dyn").string().c_str(), 1, 1) == 0);
+}
+
+TEST_CASE("ProjectSaveShutdownDrainsAcceptedWorkersBeforeReleasingData") {
+    SaveFixture fixture;
+    set_chart("shutdown", 0);
+    const auto first = fixture.dir / "first.dyn";
+    const auto second = fixture.dir / "second.dyn";
+    const auto firstId = save_project(first.string().c_str(), 1);
+    const auto secondId = save_project(second.string().c_str(), 1);
+    shutdown_project_saves();
+    CHECK_NOTHROW(shutdown_project_saves());
+    std::set<uint64_t> completed;
+    while (DyCore_has_async_event() > 0) {
+        const auto event = nlohmann::json::parse(DyCore_get_async_event());
+        REQUIRE(event.at("type") == PROJECT_SAVING);
+        CHECK(event.at("status").get<int>() >= 0);
+        completed.insert(event.at("requestId").get<uint64_t>());
+    }
+    CHECK(completed == std::set<uint64_t>{firstId, secondId});
+    for (const auto& path : {first, second}) {
+        Project saved;
+        REQUIRE(project_import_dyn(path.string().c_str(), saved) == 0);
+        CHECK(saved.metadata.at("marker") == "shutdown");
+        REQUIRE(saved.charts.size() == 1);
+        REQUIRE(saved.charts[0].notes.size() == 1);
+        CHECK(saved.charts[0].notes[0].time == 100);
+    }
+    CHECK_THROWS_AS(
+        save_project((fixture.dir / "late.dyn").string().c_str(), 1),
+        std::runtime_error);
+    CHECK_FALSE(std::filesystem::exists(fixture.dir / "late.dyn"));
+}

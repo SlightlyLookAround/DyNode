@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <windows.h>
 
 #include <filesystem>
@@ -10,4 +10,4 @@ HMODULE get_hmodule();
 
 std::filesystem::path get_program_path();
 
-DYCORE_API void DyCore_shutdown();
+DYCORE_API double DyCore_shutdown();

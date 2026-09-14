@@ -36,9 +36,14 @@ function NoteRenderer() constructor {
         gpu_set_tex_repeat(true);
         dyc_update_active_notes();
 
-        var bound = DyCore_get_note_rendering_vertex_buffer_bound();
+        var bound = DyCore_prepare_note_rendering();
+        if(bound < 0) {
+            gpu_pop_state();
+            return;
+        }
         if(buffer_get_size(cacheBuff) < bound) {
-            buffer_resize(cacheBuff, bound);
+            var capacity = ceil(bound * 1.5 / 4096) * 4096;
+            buffer_resize(cacheBuff, capacity);
         }
 
         // Render hold's bg
@@ -68,13 +73,26 @@ function NoteRenderer() constructor {
         var partNum = floor(holdParticlesTimer / PARTICLE_HOLD_DELAY);
         holdParticlesTimer -= partNum * PARTICLE_HOLD_DELAY;
 
-        if(partNum > 0) {
+        if(partNum > 0 && objMain.nowPlaying && global.particleEffects == 1 &&
+            !(part_particles_count(objMain.partSysNote) > MAX_PARTICLE_COUNT)) {
             var lastingHolds = dyc_get_lasting_holds();
             for(var i = 0, l = array_length(lastingHolds); i < l; i++) {
+                if(part_particles_count(objMain.partSysNote) > MAX_PARTICLE_COUNT) break;
                 var hold = dyc_get_note(lastingHolds[i]);
                 note_emit_particles(PARTICLE_NOTE_LAST * partNum, hold, 1);
             }
         }
+    }
+
+    static cleanup = function() {
+        if(surface_exists(tempAdditionSurface)) surface_free(tempAdditionSurface);
+        tempAdditionSurface = -1;
+        if(buffer_exists(cacheBuff)) buffer_delete(cacheBuff);
+        cacheBuff = -1;
+        if(vertBuff != -1) vertex_delete_buffer(vertBuff);
+        vertBuff = -1;
+        if(vertFormat != -1) vertex_format_delete(vertFormat);
+        vertFormat = -1;
     }
 }
 

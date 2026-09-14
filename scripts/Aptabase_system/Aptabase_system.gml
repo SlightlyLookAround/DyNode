@@ -196,6 +196,9 @@ function __AptabaseClient() constructor {
 
     // Event management.
     eventQueue = [];
+    shutdownStarted = false;
+    shutdownRequest = undefined;
+    shutdownResult = undefined;
 
     // Map of flush ID to event for events that have been sent but not yet acknowledged.
     sendingEvents = {};
@@ -242,7 +245,7 @@ function __AptabaseClient() constructor {
         return APTABASE_US_HOST;
     }
 
-    static send_request = function(payload) {
+    static get_endpoint = function() {
         var resolvedBaseURL = baseURL;
         if(string_length(resolvedBaseURL) <= 0) {
             resolvedBaseURL = get_host_from_app_key(appKey);
@@ -257,6 +260,11 @@ function __AptabaseClient() constructor {
             }
         }
 
+        return endpoint;
+    }
+
+    static send_request = function(payload) {
+        var endpoint = get_endpoint();
         var headers = ds_map_create();
         headers[? "Content-Type"] = "application/json";
         headers[? "App-Key"] = appKey;
@@ -361,6 +369,32 @@ function __AptabaseClient() constructor {
             call_cancel(flushEventHandle);
             flushEventHandle = undefined;
         }
+    }
+
+    /// @description Stop flushes and hand off only unsent events for application exit.
+    /// @returns {Any} 
+    static shutdown = function(sendEvents) {
+        if(shutdownStarted) return shutdownRequest;
+        stop();
+        shutdownStarted = true;
+        shutdownRequest = {
+            endpoint: get_endpoint(),
+            appKey: appKey,
+            events: sendEvents ? json_stringify(eventQueue) : "[]",
+            batchSize: min(maxBatchSize, __APTABASE_MAX_BATCH_SIZE_LIMIT)
+        };
+        return shutdownRequest;
+    }
+
+    /// @description Apply the confirmed prefix without replaying in-flight requests.
+    static apply_shutdown_result = function(result) {
+        if(!is_undefined(shutdownResult)) return shutdownResult;
+        shutdownResult = result;
+        var accepted = min(array_length(eventQueue), max(0, result.accepted));
+        if(accepted > 0) array_delete(eventQueue, 0, accepted);
+        shutdownResult.remaining = array_length(eventQueue);
+        shutdownResult.inFlightRequests = array_length(variable_struct_get_names(sendingEvents));
+        return shutdownResult;
     }
 }
 

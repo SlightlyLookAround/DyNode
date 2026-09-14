@@ -1,17 +1,25 @@
 #include "analytics.h"
 
 #include <sentry.h>
+#include <windows.h>
 
 #include <exception>
 #include <map>
 #include <string>
+#include <system_error>
 
 #include "config.h"
+#include "telemetry.h"
+#include "utils.h"
 #include "version.h"
 
-static bool s_sentryInitialized = false;
+namespace {
+bool analyticsInitialized = false;
+}
 
 void init_analytics() {
+    if (analyticsInitialized)
+        return;
     std::string version = "DyNode@" + std::string(DYNODE_VERSION);
 
     if (version.find("dirty") != std::string::npos) {
@@ -28,15 +36,23 @@ void init_analytics() {
     sentry_options_set_environment(
         options, DYNODE_BUILD_TYPE == "RELEASE" ? "production" : "development");
 
-    sentry_init(options);
-    s_sentryInitialized = true;
+    sentry_options_set_shutdown_timeout(options,
+                                        telemetry::EXIT_BUDGET.count());
+    analyticsInitialized = sentry_init(options) == 0;
 }
 
-void shutdown_analytics() {
-    if (s_sentryInitialized) {
-        sentry_close();
-        s_sentryInitialized = false;
+std::function<int()> take_analytics_shutdown() {
+    if (!analyticsInitialized)
+        return {};
+    HMODULE module = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                GET_MODULE_HANDLE_EX_FLAG_PIN,
+                            reinterpret_cast<LPCWSTR>(&sentry_close),
+                            &module)) {
+        throw std::system_error(GetLastError(), std::system_category());
     }
+    analyticsInitialized = false;
+    return [] { return sentry_close(); };
 }
 
 void report_exception_error(const std::string exceptionType,

@@ -338,6 +338,7 @@ function dyc_chart_import_xml(filePath, importInfo, importTiming) {
         announcement_warning("bad_dym_chart_format", 10000);
         return -1;
     }
+    if(_result != 0) return -1;
 
     show_debug_message("Load XML file completed.");
     analytics_track_event("ChartImportXML", { result: _result });
@@ -354,6 +355,7 @@ function dyc_chart_import_dy(filePath, importInfo, importTiming) {
         announcement_warning("bad_dym_chart_format", 10000);
         return -1;
     }
+    if(_result != 0) return -1;
 
     show_debug_message("Load DY file completed.");
     analytics_track_event("ChartImportDY", { result: _result });

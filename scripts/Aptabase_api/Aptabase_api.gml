@@ -23,3 +23,18 @@ function aptabase_track(eventName, props = undefined) {
 function aptabase_flush() {
     global.__aptabaseClient.flush();
 }
+
+/// @description Stop automatic flushes and prepare the unsent queue for application exit.
+/// @returns {Any} 
+function aptabase_shutdown(sendEvents = true) {
+    if(!variable_global_exists("__aptabaseClient")) {
+        return { endpoint: "", appKey: "", events: "[]", batchSize: 0 };
+    }
+    return global.__aptabaseClient.shutdown(sendEvents);
+}
+
+/// @description Apply the shared telemetry shutdown result to the unsent queue.
+function aptabase_apply_shutdown_result(result) {
+    if(!variable_global_exists("__aptabaseClient")) return result;
+    return global.__aptabaseClient.apply_shutdown_result(result);
+}

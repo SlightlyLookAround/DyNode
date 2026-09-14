@@ -10,7 +10,15 @@
 
 #region MAP FUNCTIONS
 
-function map_close() {
+function map_close(shuttingDown = false) {
+	DyCore_project_save_invalidate();
+	// A late completion belongs to the closed project, not its replacement.
+	with(objManager) {
+		pendingSaveRequestId = 0;
+		nextProjectPath = "";
+		autosaving = false;
+	}
+	global.isSaving = false;
 	with(objMain) {
 		dyc_video_free();
 		kawase_destroy(kawaseArr);
@@ -47,6 +55,7 @@ function map_close() {
 		dyc_active_props_cache_invalidate();
 		global.isSaving = false;
 
+
 		with(objManager) {
 			musicPath = "";
 			backgroundPath = "";
@@ -66,9 +75,11 @@ function map_close() {
 	
 	instance_destroy(objMain);
 
-	call_later(1, time_source_units_seconds, function() { gc_collect(); });
-	call_later(2, time_source_units_seconds, function() { gc_collect(); });
-	call_later(3, time_source_units_seconds, function() { gc_collect(); });
+	if(!shuttingDown) {
+		call_later(1, time_source_units_seconds, function() { gc_collect(); });
+		call_later(2, time_source_units_seconds, function() { gc_collect(); });
+		call_later(3, time_source_units_seconds, function() { gc_collect(); });
+	}
 }
 
 function map_reset() {
@@ -111,13 +122,13 @@ function map_load(_file = "") {
 		switch filename_ext(_file) {
 			case ".xml":
 			case ".dy":
-				map_import_dym(_file, _direct);
+				if(map_import_dym(_file, _direct) != 0) return;
 				break;
 			case ".osu":
 				map_import_osu(_file);
 				break;
 			case ".dyn":
-				map_import_dyn(_file);
+				if(map_import_dyn(_file) != 0) return;
 				break;
 		}
 	} catch (e) {
@@ -132,7 +143,6 @@ function map_load(_file = "") {
 }
 
 function map_import_dym(_file, _direct = false) {
-    var _buf = buffer_load(_file);
     var _str;
 	var _dy_format = false;
 	var _import_info, _import_tp;
@@ -145,8 +155,7 @@ function map_import_dym(_file, _direct = false) {
 	}
 
 	if(filename_ext(_file) == ".xml") {
-		dyc_chart_import_xml(_file, _import_info, _import_tp);
-		return;
+		return dyc_chart_import_xml(_file, _import_info, _import_tp);
 	}
 	else {
 		var result = dyc_chart_import_dy(_file, _import_info, _import_tp);
@@ -164,6 +173,7 @@ function map_import_dym(_file, _direct = false) {
 			if(_video != "")
 				video_load(_video);
 		}
+		return result;
 	}
     
 }
@@ -268,7 +278,7 @@ function map_import_dyn(_file) {
 	var _import_info = show_question_i18n("box_q_import_info");
     var _import_tp = show_question_i18n("box_q_import_bpm");
 
-	dyc_chart_import_dyn(_file, _import_info, _import_tp);
+	return dyc_chart_import_dyn(_file, _import_info, _import_tp);
 }
 
 function map_set_title() {
@@ -737,14 +747,31 @@ function project_save_as(_file = "") {
 		video: objManager.videoPath
 	}));
 
-	// Trigger an async saving project event.
-	DyCore_save_project(_file, DYCORE_COMPRESSION_LEVEL);
+	// Capture the request before another project can replace the live data.
+	var requestId = DyCore_save_project_request(_file, DYCORE_COMPRESSION_LEVEL);
+	if(requestId < 0) {
+		global.isSaving = false;
+		objManager.pendingSaveRequestId = 0;
+		objManager.nextProjectPath = "";
+		objManager.autosaving = false;
+		return 0;
+	}
+	objManager.pendingSaveRequestId = requestId;
 	objManager.nextProjectPath = _file;
 
 	return 1;
 }
 
+/// @description Match a completion to the current project's pending save.
+function project_save_event_matches(event, requestId) {
+	return requestId > 0 && variable_struct_exists(event, "requestId")
+		&& event[$ "requestId"] == requestId;
+}
+
 function project_save_callback(event) {
+	if(!project_save_event_matches(event, objManager.pendingSaveRequestId))
+		return;
+	objManager.pendingSaveRequestId = 0;
 	global.isSaving = false;
 	if(event[$ "status"] < 0) {
 		announcement_error(i18n_get("anno_project_save_failed", event[$ "content"]));
@@ -783,7 +810,9 @@ function project_file_duplicate(_project, _propath) {
 	var _nmu = _new_file_path(_mu, _propath);
 	
 	var _process = function(_pro, _varname, _file, _nfile) {
-		if(is_relative_path(_file)) return;	// If already relative path
+		if(_file == "") return;
+		if(is_relative_path(_file))
+			_file = filename_path(objManager.projectPath) + _file;
 		if(file_exists(_file)) {
 			if(!file_exists(_nfile))
 				file_copy(_file, _nfile);
@@ -1034,6 +1063,7 @@ function theme_next() {
 
 /// @returns {Any} 
 function theme_get() {
+	global.themeAt %= global.themeCount;
 	return global.themes[global.themeAt];
 }
 
@@ -1065,6 +1095,20 @@ function theme_custom_set_color(col) {
 #endregion
 
 #region SYSTEM FUNCTIONS
+
+/// @description Isolate an application shutdown stage so other systems still clean up.
+function app_cleanup_step(label, cleanup) {
+	try {
+		show_debug_message("Cleanup stage: " + label);
+		cleanup();
+		show_debug_message($"Cleanup stage {label} done.")
+		return true;
+	} catch(error) {
+		show_debug_message("Cleanup failed: " + label);
+		show_debug_message(error);
+		return false;
+	}
+}
 
 /// @description Check if a parameter string is a valid filename.
 /// @param {String} str The string to check.
@@ -1460,7 +1504,7 @@ function analytics_track_event(event_name, event_data = {}) {
 function game_end_confirm() {
 	var _confirm_exit = instance_exists(objMain) ? show_question_i18n("confirm_close") : true;
 	if(_confirm_exit) {
-		map_close();
+		// Game End drains pending saves before closing the chart.
 		game_end();
 		return true;
 	}
