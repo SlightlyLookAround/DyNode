@@ -50,6 +50,10 @@ target_include_directories(xxhash PUBLIC "lib/xxhash")
 set(MI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(MI_BUILD_OBJECT OFF CACHE BOOL "" FORCE)
 set(MI_BUILD_TESTS  OFF CACHE BOOL "" FORCE)
+# mimalloc 3.5.x enables detailed stats and sampled profiling by default;
+# turn both off for lower runtime overhead in the game engine.
+set(MI_STATS        OFF CACHE BOOL "" FORCE)
+set(MI_PROFILE      OFF CACHE BOOL "" FORCE)
 # Compile mimalloc as C++. In C, `inline` without `extern` is an inline
 # definition that the compiler is not required to emit as a standalone
 # symbol; at -O3 clang omits them, causing link failures for cross-TU
