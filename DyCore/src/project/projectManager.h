@@ -60,6 +60,13 @@ class ProjectManager {
     int find_chart_by_difficulty(int difficulty) const;
     /// @return Array of difficulty values for every stored chart.
     std::vector<int> get_chart_difficulties() const;
+    /// Notes from a non-current difficulty chart inside [timeMin, timeMax].
+    /// When excludeOverlap is true, drop notes that already exist on the
+    /// live (current) chart at the same time/side/position/type/width.
+    /// @return JSON array string of {time,side,width,position,noteType,lastTime}.
+    std::string get_diff_preview_notes_json(int difficulty, double timeMin,
+                                            double timeMax,
+                                            bool excludeOverlap) const;
     /// Snapshot the current chart as a single-chart project (feature off).
     Project create_single_chart_export_snapshot();
     uint64_t get_project_generation() const {

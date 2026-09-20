@@ -1,5 +1,19 @@
 var _editMode = editor_get_editmode();
 
+// Difficulty-diff preview ghost: fixed faded alpha, no interaction, no pool sync.
+if(variable_instance_exists(id, "isDiffPreview") && isDiffPreview) {
+    image_alpha = 0.3;
+    lastAlpha = 0.3;
+    animTargetA = 0.3;
+    animTargetLstA = 0.3;
+    drawVisible = true;
+    _prop_init(true);
+    if(noteType == 2)
+        pHeight = max(originalHeight,
+            objMain.playbackSpeed * max(lastTime, 0) + dFromBottom + uFromTop);
+    exit;
+}
+
 // If notes are being dragged, prevent pulling properties
 if(_editMode < 5) {
     if(can_pull())

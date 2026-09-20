@@ -882,6 +882,39 @@ function dyc_project_get_chart_difficulties() {
     }
 }
 
+/// Notes from a non-current difficulty chart inside the given time range.
+/// @param {Real} difficulty
+/// @param {Real} timeMin
+/// @param {Real} timeMax
+/// @param {Bool} excludeOverlap Drop notes that already exist on the current chart.
+/// @returns {Array<Struct>}
+function dyc_project_get_diff_preview_notes(difficulty, timeMin, timeMax, excludeOverlap = true) {
+    try {
+        var _json = DyCore_project_get_diff_preview_notes(
+            difficulty, timeMin, timeMax, excludeOverlap ? 1 : 0);
+        if(_json == "" || _json == "[]") return [];
+        return json_parse(_json);
+    } catch (e) {
+        show_debug_message("Error parsing diff preview notes: " + string(e));
+        return [];
+    }
+}
+
+/// Feed preview notes into the C++ note renderer (same sprites, lower alpha).
+/// @param {Array<Struct>} notes
+/// @param {Real} alphaMul Default 0.3 — slightly fainter than fade-other-notes.
+function dyc_set_diff_preview_notes(notes, alphaMul = 0.3) {
+    if(!is_array(notes) || array_length(notes) == 0) {
+        DyCore_clear_diff_preview_notes();
+        return;
+    }
+    DyCore_set_diff_preview_notes(json_stringify(notes), alphaMul);
+}
+
+function dyc_clear_diff_preview_notes() {
+    DyCore_clear_diff_preview_notes();
+}
+
 function dyc_get_string(prompt, default_text) {
     var result = DyCore_get_string(prompt, default_text);
     if(result == "<%$><.3>TERMINATED<!#><##>") return "";

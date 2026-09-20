@@ -241,6 +241,21 @@ DYCORE_API const char* DyCore_project_get_chart_difficulties() {
     return result.c_str();
 }
 
+DYCORE_API const char* DyCore_project_get_diff_preview_notes(
+    double difficulty, double timeMin, double timeMax, double excludeOverlap) {
+    static string result;
+    try {
+        result = ProjectManager::inst().get_diff_preview_notes_json(
+            static_cast<int>(difficulty), timeMin, timeMax,
+            excludeOverlap > 0);
+    } catch (const std::exception& e) {
+        print_debug_message("Failed to get diff preview notes: " +
+                            string(e.what()));
+        result = "[]";
+    }
+    return result.c_str();
+}
+
 DYCORE_API double DyCore_project_export_current_as_single(const char* filePath,
                                                           double compressionLevel) {
     try {

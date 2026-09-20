@@ -266,6 +266,7 @@
         "diff_storage_delete_failed": "刪除 $0 難度差分失敗。",
         "diff_storage_delete_none": "尚未建立難度差分，無法刪除。",
         "diff_storage_delete_last": "工程中僅剩一個難度差分，無法刪除。",
-        "diff_storage_delete_disabled": "請先開啟儲存不同難度差分功能。"
+        "diff_storage_delete_disabled": "請先開啟儲存不同難度差分功能。",
+        "diff_storage_previewing": "正在預覽本難度譜面與 $0 難度譜面的差異。"
     }
 }

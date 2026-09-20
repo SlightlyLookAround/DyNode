@@ -15,7 +15,17 @@ function diff_storage_init() {
     global.diffStorageUndo = {};
     global.diffStorageChordPrev = false;
     global.diffStorageDeletePrev = false;
+    // Alt+1..6 semi-transparent preview of another difficulty chart.
+    global.diffPreviewActive = -1;
+    global.diffPreviewNotes = [];
+    global.diffPreviewCacheMin = 0;
+    global.diffPreviewCacheMax = 0;
+    global.diffPreviewAnnoId = "diff_storage_preview";
+    global.diffPreviewGhosts = [];
+    global.diffPreviewEditMode = -1;
 }
+
+#macro DIFF_PREVIEW_ALPHA 0.3
 
 function diff_storage_get_meta() {
     var _index = 0;
@@ -390,4 +400,224 @@ function diff_storage_step() {
     if(_del && !global.diffStorageDeletePrev)
         diff_storage_delete_current();
     global.diffStorageDeletePrev = _del;
+
+    diff_storage_preview_step();
+}
+
+// ---------------- Alt+1..6 difficulty preview overlay ----------------
+
+/// Left Alt only (right Alt keeps its existing bindings).
+function diff_storage_lalt_held() {
+    if(!variable_global_exists("__InputManager")) return false;
+    if(global.__InputManager.is_frozen()) return false;
+    if(!keyboard_check(vk_lalt)) return false;
+    // If only right Alt is down, vk_lalt may still report on some layouts.
+    if(keyboard_check(vk_ralt) && !keyboard_check(vk_lalt)) return false;
+    return true;
+}
+
+function diff_storage_preview_clear(hideAnno = true) {
+    if(global.diffPreviewActive < 0 && array_length(global.diffPreviewNotes) == 0
+        && array_length(global.diffPreviewGhosts) == 0)
+        return;
+    global.diffPreviewActive = -1;
+    global.diffPreviewNotes = [];
+    global.diffPreviewCacheMin = 0;
+    global.diffPreviewCacheMax = 0;
+    global.diffPreviewEditMode = -1;
+    diff_storage_preview_destroy_ghosts();
+    dyc_clear_diff_preview_notes();
+    if(hideAnno && variable_global_exists("announcementMan"))
+        announcement_play("", 1, global.diffPreviewAnnoId);
+}
+
+function diff_storage_preview_destroy_ghosts() {
+    if(!variable_global_exists("diffPreviewGhosts")) return;
+    var g = global.diffPreviewGhosts;
+    for(var i=0; i<array_length(g); i++)
+        if(instance_exists(g[i]))
+            instance_destroy(g[i]);
+    global.diffPreviewGhosts = [];
+}
+
+/// Edit-mode ghosts: real note instances drawn through the normal draw_event
+/// with fade-other-notes alpha (0.5), so they look identical to live notes.
+function diff_storage_preview_rebuild_ghosts() {
+    diff_storage_preview_destroy_ghosts();
+    if(global.diffPreviewActive < 0) return;
+    if(!instance_exists(objMain)) return;
+
+    var _notes = global.diffPreviewNotes;
+    var _ghosts = [];
+    for(var i=0; i<array_length(_notes); i++) {
+        var n = _notes[i];
+        if(!is_struct(n)) continue;
+        if(n.noteType == 3) continue;
+        // Cull far-off-screen notes to keep instance count reasonable.
+        var _y = note_time_to_y(n.time, n.side);
+        if(n.side == 0 && (_y > BASE_RES_H + 120 || _y < -120 - n.lastTime * objMain.playbackSpeed))
+            continue;
+
+        var _obj = _note_get_object_asset(n.noteType);
+        var inst = instance_create_depth(0, 0, 5, _obj);
+        inst.isDiffPreview = true;
+        inst.noteType = n.noteType;
+        inst.side = n.side;
+        inst.time = n.time;
+        inst.width = n.width;
+        inst.position = n.position;
+        inst.lastTime = n.lastTime;
+        inst.beginTime = n.time;
+        inst.noteID = "";
+        inst.subNoteID = "";
+        inst.sinst = -999;
+        inst.finst = -999;
+        inst.selectTolerance = false;
+        inst.attaching = false;
+        inst.selectInbound = false;
+        inst.drawVisible = true;
+        inst.image_alpha = DIFF_PREVIEW_ALPHA;
+        inst.animTargetA = DIFF_PREVIEW_ALPHA;
+        inst.lastAlpha = DIFF_PREVIEW_ALPHA;
+        inst.animTargetLstA = DIFF_PREVIEW_ALPHA;
+        inst._prop_init(true);
+        if(n.noteType == 2) {
+            inst.pHeight = max(inst.originalHeight,
+                objMain.playbackSpeed * max(n.lastTime, 0)
+                + inst.dFromBottom + inst.uFromTop);
+        }
+        array_push(_ghosts, inst);
+    }
+    global.diffPreviewGhosts = _ghosts;
+}
+
+/// Visible time window for the current playview (with a small margin).
+function diff_storage_preview_time_range() {
+    var _spd = max(objMain.playbackSpeed, 0.05);
+    var _ahead = (BASE_RES_H + 240) / _spd;
+    var _behind = (objMain.targetLineBelow + objMain.targetLineBelowH + 240) / _spd;
+    return [objMain.nowTime - _behind, objMain.nowTime + _ahead];
+}
+
+function diff_storage_preview_apply_notes() {
+    // Playback mode uses the C++ note renderer (same sprites/geometry, alpha*0.5).
+    // Edit mode uses real note instances + draw_event (identical to faded notes).
+    dyc_set_diff_preview_notes(global.diffPreviewNotes, DIFF_PREVIEW_ALPHA);
+    var _em = editor_get_editmode();
+    global.diffPreviewEditMode = _em;
+    if(_em < 5 && _em >= 0)
+        diff_storage_preview_rebuild_ghosts();
+    else
+        diff_storage_preview_destroy_ghosts();
+}
+
+function diff_storage_preview_step() {
+    if(!variable_global_exists("diffPreviewActive")) return;
+    if(!instance_exists(objMain)) {
+        diff_storage_preview_clear();
+        return;
+    }
+
+    // Requires difficulty-diff charts to exist in this project.
+    if(!global.diffStorageEnabled || !global.diffStorageCreated
+        || dyc_project_get_chart_count() <= 1) {
+        diff_storage_preview_clear();
+        return;
+    }
+
+    if(!diff_storage_lalt_held()) {
+        diff_storage_preview_clear();
+        return;
+    }
+
+    // Collect held 1..6 (main row + numpad). Exactly one required.
+    var _held = -1;
+    var _heldCount = 0;
+    for(var i=0; i<6; i++) {
+        var _k = ord("1") + i;
+        var _nk = vk_numpad1 + i;
+        if(keyboard_check(_k) || keyboard_check(_nk)) {
+            _held = i;
+            _heldCount ++;
+        }
+    }
+    // 0 keys or 2+ keys (e.g. Alt+1+2) → no preview.
+    if(_heldCount != 1 || _held < 0) {
+        diff_storage_preview_clear();
+        return;
+    }
+
+    var _diff = _held;
+    if(_diff == objMain.chartDifficulty) {
+        diff_storage_preview_clear();
+        return;
+    }
+    if(dyc_project_find_chart_by_difficulty(_diff) < 0) {
+        diff_storage_preview_clear();
+        return;
+    }
+
+    var _range = diff_storage_preview_time_range();
+    var _needFetch = (global.diffPreviewActive != _diff)
+        || (_range[0] < global.diffPreviewCacheMin)
+        || (_range[1] > global.diffPreviewCacheMax);
+
+    if(_needFetch) {
+        // Fetch a wider window so scrolling does not re-query every frame.
+        var _pad = (_range[1] - _range[0]) * 0.25 + 200;
+        var _min = _range[0] - _pad;
+        var _max = _range[1] + _pad;
+        global.diffPreviewNotes = dyc_project_get_diff_preview_notes(
+            _diff, _min, _max, true);
+        global.diffPreviewCacheMin = _min;
+        global.diffPreviewCacheMax = _max;
+        global.diffPreviewActive = _diff;
+        diff_storage_preview_apply_notes();
+    } else {
+        // Rebuild edit-mode ghosts if the editor mode changed while held.
+        var _em = editor_get_editmode();
+        if(global.diffPreviewEditMode != _em) {
+            global.diffPreviewEditMode = _em;
+            if(_em < 5 && _em >= 0)
+                diff_storage_preview_rebuild_ghosts();
+            else
+                diff_storage_preview_destroy_ghosts();
+            dyc_set_diff_preview_notes(global.diffPreviewNotes, DIFF_PREVIEW_ALPHA);
+        }
+    }
+
+    var _msg = i18n_get("diff_storage_previewing", diff_storage_diff_name(_diff));
+    announcement_play(_msg, 2500, global.diffPreviewAnnoId);
+}
+
+/// Draw preview notes under live notes.
+/// Edit mode: call each ghost instance's draw_event (same as real/faded notes).
+/// Playback mode: C++ renderer already includes preview notes with alpha 0.5.
+function diff_storage_preview_draw() {
+    if(!variable_global_exists("diffPreviewActive")) return;
+    if(global.diffPreviewActive < 0) return;
+    if(!instance_exists(objMain)) return;
+    if(editor_get_editmode() >= 5) return; // handled by C++ note renderer
+
+    var _ghosts = global.diffPreviewGhosts;
+    for(var i=0; i<array_length(_ghosts); i++) {
+        var inst = _ghosts[i];
+        if(!instance_exists(inst)) continue;
+        inst.image_alpha = DIFF_PREVIEW_ALPHA;
+        inst.lastAlpha = DIFF_PREVIEW_ALPHA;
+        inst.drawVisible = true;
+        // Keep geometry in sync with current nowTime / playbackSpeed.
+        inst._prop_init(true);
+        if(inst.noteType == 2) {
+            inst.pHeight = max(inst.originalHeight,
+                objMain.playbackSpeed * max(inst.lastTime, 0)
+                + inst.dFromBottom + inst.uFromTop);
+            with(inst) {
+                draw_event(false);
+                draw_event(true);
+            }
+        } else {
+            with(inst) draw_event();
+        }
+    }
 }

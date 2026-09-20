@@ -4,6 +4,9 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
+#include "note.h"
 
 inline constexpr double HOLD_BG_LIGHTNESS = 0.3;
 // Batched rendering pays off from roughly a thousand notes per frame.
@@ -75,6 +78,11 @@ size_t get_sprite_max_bytes(const std::string& name);
 
 size_t render_active_notes(char* const vertexBuffer, double nowTime,
                            double noteSpeed, int state);
+
+// Semi-transparent overlay notes for difficulty-diff preview (Alt+1..6).
+// alphaMul matches the editor "fade other notes" look (0.5).
+void set_diff_preview_notes(std::vector<Note> notes, double alphaMul);
+void clear_diff_preview_notes();
 
 // Must be called before the first render. A value of zero keeps the automatic
 // hardware-concurrency setting.

@@ -412,6 +412,7 @@
         "diff_storage_delete_failed": "Failed to delete $0 difficulty difference.",
         "diff_storage_delete_none": "No difficulty difference has been created yet.",
         "diff_storage_delete_last": "Only one difficulty difference remains; it cannot be deleted.",
-        "diff_storage_delete_disabled": "Enable Difficulty Diff Storage first."
+        "diff_storage_delete_disabled": "Enable Difficulty Diff Storage first.",
+        "diff_storage_previewing": "Previewing differences against the $0 difficulty chart."
     }
 }

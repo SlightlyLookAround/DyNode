@@ -1,5 +1,6 @@
 #include "projectManager.h"
 
+#include <cmath>
 #include <mutex>
 #include <shared_mutex>
 #include <stdexcept>
@@ -182,6 +183,70 @@ std::vector<int> ProjectManager::get_chart_difficulties() const {
     for (const auto& chart : project.charts)
         out.push_back(chart.metadata.difficulty);
     return out;
+}
+
+namespace {
+bool notes_overlap_for_preview(const Note& a, const Note& b) {
+    if (a.side != b.side) return false;
+    if (a.get_note_type() != b.get_note_type()) return false;
+    if (std::abs(a.time - b.time) >= 1.0) return false;
+    if (std::abs(a.position - b.position) >= 0.05) return false;
+    if (std::abs(a.width - b.width) >= 0.05) return false;
+    return true;
+}
+}  // namespace
+
+std::string ProjectManager::get_diff_preview_notes_json(
+    int difficulty, double timeMin, double timeMax,
+    bool excludeOverlap) const {
+    std::vector<Note> others;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+        int idx = -1;
+        for (int i = 0; i < static_cast<int>(project.charts.size()); ++i) {
+            if (project.charts[i].metadata.difficulty == difficulty) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 0) return "[]";
+
+        for (const auto& n : project.charts[idx].notes) {
+            if (n.get_note_type() == NOTE_TYPE::SUB) continue;
+            const double endTime = n.time + std::max(0.0, n.lastTime);
+            if (endTime < timeMin || n.time > timeMax) continue;
+            others.push_back(n);
+        }
+    }
+
+    if (excludeOverlap && !others.empty()) {
+        std::vector<Note> current;
+        get_note_pool_manager().get_notes(current, true);
+        std::vector<Note> filtered;
+        filtered.reserve(others.size());
+        for (const auto& n : others) {
+            bool hit = false;
+            for (const auto& c : current) {
+                if (notes_overlap_for_preview(n, c)) {
+                    hit = true;
+                    break;
+                }
+            }
+            if (!hit) filtered.push_back(n);
+        }
+        others.swap(filtered);
+    }
+
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto& n : others) {
+        arr.push_back({{"time", n.time},
+                       {"side", n.side},
+                       {"width", n.width},
+                       {"position", n.position},
+                       {"noteType", static_cast<int>(n.type)},
+                       {"lastTime", n.lastTime}});
+    }
+    return arr.dump();
 }
 
 Project ProjectManager::create_single_chart_export_snapshot() {

@@ -461,7 +461,12 @@ enum class RenderItemKind { NORMAL, HOLD_BACKGROUND, HOLD_BAR, HOLD_EDGE };
 struct RenderSource {
     const Note* note;
     RenderItemKind kind;
+    double alphaMul = 1.0;
 };
+
+// Difficulty-diff preview overlay notes (not in the live note pool).
+std::vector<Note> g_diffPreviewNotes;
+double g_diffPreviewAlpha = 0.3;
 
 struct PreparedSprite {
     const SpriteRenderData* renderData = nullptr;
@@ -555,7 +560,8 @@ void prepare_workspace_capacity(RenderWorkspace& workspace) {
     const size_t notes = activation.get_active_notes().size();
     const size_t holds = activation.get_active_holds().size();
     const size_t lasting = activation.get_lasting_holds().size();
-    const size_t sources = std::max({notes, holds, lasting});
+    const size_t preview = g_diffPreviewNotes.size();
+    const size_t sources = std::max({notes, holds, lasting}) + preview;
     const size_t desiredChunks = static_cast<size_t>(workspace.workerCount) * 4;
     // Byte-weighted groups can split into at most twice the target count,
     // plus one rounding fragment for each of HOLD/NORMAL/CHAIN.
@@ -583,6 +589,15 @@ void set_render_worker_count_override(size_t workerCount) {
             "Render worker count must be configured before the first render");
     }
     renderWorkerCountOverride = workerCount;
+}
+
+void set_diff_preview_notes(std::vector<Note> notes, double alphaMul) {
+    g_diffPreviewNotes = std::move(notes);
+    g_diffPreviewAlpha = alphaMul > 0.0 ? alphaMul : 0.3;
+}
+
+void clear_diff_preview_notes() {
+    g_diffPreviewNotes.clear();
 }
 
 void initialize_note_rendering() {
@@ -646,10 +661,10 @@ size_t render_active_notes(char* const vertexBuffer, double nowTime,
     const auto holdBarRenderData = make_sprite_render_data(holdBarSprite);
     const auto holdBgRenderData = make_sprite_render_data(holdBgSprite);
 
-    auto prepare_normal = [&](const Note& note) {
+    auto prepare_normal = [&](const Note& note, double alphaMul) {
         PreparedSprite prepared;
         prepared.position = get_note_pos(note, nowTime, noteSpeed);
-        const double alpha = get_note_alpha(note.side, prepared.position);
+        const double alpha = get_note_alpha(note.side, prepared.position) * alphaMul;
         prepared.rotation = get_note_rotation(note.side);
         prepared.pivot = PIVOT::CENTER;
         const SpriteData& spriteData =
@@ -663,10 +678,11 @@ size_t render_active_notes(char* const vertexBuffer, double nowTime,
         return prepared;
     };
 
-    auto prepare_hold = [&](const Note& note, RenderItemKind kind) {
+    auto prepare_hold = [&](const Note& note, RenderItemKind kind,
+                            double alphaMul) {
         PreparedSprite prepared;
         prepared.position = get_note_pos(note, nowTime, noteSpeed);
-        const double alpha = get_note_alpha(note.side, prepared.position);
+        const double alpha = get_note_alpha(note.side, prepared.position) * alphaMul;
         prepared.rotation = get_note_rotation(note.side);
         const auto& edgeSprite = holdEdgeSprite;
         const auto& barSprite = holdBarSprite;
@@ -800,8 +816,8 @@ size_t render_active_notes(char* const vertexBuffer, double nowTime,
         }
     };
     auto append_source = [&](const Note& note, RenderItemKind kind,
-                             size_t maxBytes) {
-        sources.push_back({&note, kind});
+                             size_t maxBytes, double alphaMul = 1.0) {
+        sources.push_back({&note, kind, alphaMul});
         add_estimated_bytes(maxBytes);
     };
     auto resolve_notes =
@@ -887,11 +903,39 @@ size_t render_active_notes(char* const vertexBuffer, double nowTime,
                        deferredSources.end());
     }
 
+    // Append difficulty-diff preview notes using the same sprites/geometry
+    // as live notes, only with reduced alpha (fade-other-notes style).
+    if (!g_diffPreviewNotes.empty()) {
+        const double previewMul = g_diffPreviewAlpha;
+        for (const Note& note : g_diffPreviewNotes) {
+            if (note.get_note_type() == NOTE_TYPE::SUB) continue;
+            if (state == 0) {
+                if (note.get_note_type() == NOTE_TYPE::HOLD)
+                    append_source(note, RenderItemKind::HOLD_BACKGROUND,
+                                  holdBgMaxBytes, previewMul);
+            } else if (state == 1) {
+                if (note.get_note_type() == NOTE_TYPE::HOLD)
+                    append_source(note, RenderItemKind::HOLD_BAR,
+                                  holdBarMaxBytes, previewMul);
+            } else {
+                if (note.get_note_type() == NOTE_TYPE::HOLD)
+                    append_source(note, RenderItemKind::HOLD_EDGE,
+                                  holdEdgeMaxBytes, previewMul);
+                else if (note.get_note_type() == NOTE_TYPE::NORMAL)
+                    append_source(note, RenderItemKind::NORMAL, tapMaxBytes,
+                                  previewMul);
+                else if (note.get_note_type() == NOTE_TYPE::CHAIN)
+                    append_source(note, RenderItemKind::NORMAL, chainMaxBytes,
+                                  previewMul);
+            }
+        }
+    }
+
     auto prepare_source = [&](const RenderSource& source) {
         if (source.kind == RenderItemKind::NORMAL) {
-            return prepare_normal(*source.note);
+            return prepare_normal(*source.note, source.alphaMul);
         }
-        return prepare_hold(*source.note, source.kind);
+        return prepare_hold(*source.note, source.kind, source.alphaMul);
     };
 
     auto draw_prepared = [&](char*& out, const PreparedSprite& prepared) {
@@ -1060,6 +1104,10 @@ size_t get_vertex_buffer_bound() {
     // State 2
     total_bound += activeHolds.size() * edgeBytes;
     total_bound += (activeNotes.size() - activeHolds.size()) * tapBytes;
+
+    // Difficulty-diff preview overlay (worst-case: every note is a hold body+edge+bar)
+    const size_t previewCount = g_diffPreviewNotes.size();
+    total_bound += previewCount * (bgBytes + barBytes + edgeBytes + tapBytes);
 
     return total_bound + 1024 * BYTES_PER_QUAD;
 }

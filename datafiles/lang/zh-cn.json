@@ -412,6 +412,7 @@
         "diff_storage_delete_failed": "删除 $0 难度差分失败。",
         "diff_storage_delete_none": "尚未创建难度差分，无法删除。",
         "diff_storage_delete_last": "工程中仅剩一个难度差分，无法删除。",
-        "diff_storage_delete_disabled": "请先开启存储不同难度差分功能。"
+        "diff_storage_delete_disabled": "请先开启存储不同难度差分功能。",
+        "diff_storage_previewing": "正在预览本难度谱面与 $0 难度谱面的差异。"
     }
 }

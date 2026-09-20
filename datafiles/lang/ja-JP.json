@@ -266,6 +266,7 @@
         "diff_storage_delete_failed": "$0 難易度の差分削除に失敗しました。",
         "diff_storage_delete_none": "まだ難易度差分が作成されていないため削除できません。",
         "diff_storage_delete_last": "難易度差分が 1 つしか残っていないため削除できません。",
-        "diff_storage_delete_disabled": "先に難易度差分ストレージをオンにしてください。"
+        "diff_storage_delete_disabled": "先に難易度差分ストレージをオンにしてください。",
+        "diff_storage_previewing": "現在の譜面と $0 難易度譜面の差分をプレビュー中です。"
     }
 }

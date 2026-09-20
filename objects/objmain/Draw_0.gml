@@ -119,9 +119,12 @@ var _nw = BASE_RES_W, _nh = BASE_RES_H;
                     _nh - targetLineBelow, false);
 	// Line Below
 	draw_set_color_alpha(merge_color(themeColor, c_white, lineMix[0]), 1.0);
-    draw_rectangle(0, _nh - targetLineBelow - targetLineBelowH/2, 
+    draw_rectangle(0, _nh - targetLineBelow - targetLineBelowH/2,
                     _nw, _nh - targetLineBelow + targetLineBelowH/2, false);
-    
+
+// Difficulty-diff ghost preview (Alt+1..6) — under live notes.
+	diff_storage_preview_draw();
+
 // Draw Notes
 
 	var _piano = global.themeAt == 2 && editor_get_editmode() == 5;
