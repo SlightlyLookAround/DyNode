@@ -77,17 +77,34 @@ function RecordManager() constructor {
         var h = RECORDING_RESOLUTION_H;
         var _fps = RECORDING_FPS;
         var musicPath = "";
+        var _audioDelayMs = 0;
 
         // Get music path.
         if(instance_exists(objMain)) {
             musicPath = get_absolute_path(filename_path(objManager.projectPath), objManager.musicPath);
+            // Live playback maps chart time T to file position
+            // T + FMOD_MP3_DELAY + musicDelay. Recording muxes the raw file
+            // with -itsoffset, so apply the same mapping or the muxed audio
+            // will drift away from timing points when a delay is configured.
+            _audioDelayMs = global.FMOD_MP3_DELAY * objMain.usingMP3 + global.musicDelay;
         }
 
-        var err = dyc_ffmpeg_start_recording(filename, musicPath, w, h, _fps, PLAYBACK_EMPTY_TIME / 1000);
+        var musicOffsetSec = (PLAYBACK_EMPTY_TIME - _audioDelayMs) / 1000;
+        show_debug_message($"-- Recording audio offset: {musicOffsetSec}s (delayMs={_audioDelayMs}, mp3={objMain.usingMP3}, FMOD={global.FMOD_MP3_DELAY}, musicDelay={global.musicDelay})");
+        var err = dyc_ffmpeg_start_recording(filename, musicPath, w, h, _fps, musicOffsetSec);
         if(err != 0) {
             show_debug_message("-- Failed to start recording. Error code: " + string(err));
         } else {
             show_debug_message("-- Recording started: " + filename);
+        }
+
+        // Step advances nowTime before Draw pushes frame 0. Pre-compensate
+        // one fixed step so the first encoded frame sits at chart time
+        // -PLAYBACK_EMPTY_TIME, matching the muxed audio offset.
+        if(instance_exists(objMain)) {
+            var _stepMs = 1000 / RECORDING_FPS;
+            objMain.nowTime = -PLAYBACK_EMPTY_TIME - _stepMs;
+            objMain.animTargetTime = objMain.nowTime;
         }
 
         frameBuffer = buffer_create(_get_surface_buffer_size(w, h), buffer_fast, 1);

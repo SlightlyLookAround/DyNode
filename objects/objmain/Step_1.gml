@@ -57,7 +57,12 @@ chartSideType = _metadata.sideType;
 
 // Time Operation
 
-    if(nowPlaying && !(_timchange != 0 || _timscr != 0)) {
+    // Recording pre-roll waits ~0.5s before FFmpeg starts. Hold the chart
+    // clock during that window so frame 0 can be re-seeded to
+    // -PLAYBACK_EMPTY_TIME; otherwise the muxed audio offset drifts.
+    var _recPreRoll = global.recordManager.prepareRecording && !global.recordManager.recording;
+
+    if(nowPlaying && !(_timchange != 0 || _timscr != 0) && !_recPreRoll) {
         var dT = global.timeManager.get_delta(-1, false) / 1000;
         if(!global.recordManager.is_recording())
             dT *= musicSpeed;
@@ -141,8 +146,14 @@ chartSideType = _metadata.sideType;
                 }
             }
         
-        // If music ends then stop
-        if((FMODGMS_Chan_Is_Playing(channel)<=0 || nowTime >= musicLength) && nowPlaying) {
+        // If music ends then stop.
+        // While recording, the FMOD channel is intentionally left paused
+        // (audio is muxed offline from the file), so a dead/paused channel
+        // must not be treated as playback end — only an actual chart end.
+        var _musicEnded = (nowTime >= musicLength);
+        if(!global.recordManager.is_recording())
+            _musicEnded = _musicEnded || (FMODGMS_Chan_Is_Playing(channel) <= 0);
+        if(_musicEnded && nowPlaying) {
         	
             // Channel gets invalid, create another one.
             _create_channel();

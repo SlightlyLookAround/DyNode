@@ -1391,7 +1391,18 @@ function playview_start_replay(callback_func = undefined) {
 		if(nowPlaying) playview_pause_and_resume();	// Pause first.
 
 		_reset_all_particles();
-		if(editor_get_editmode() != 5) {
+
+		// Capture the pre-replay mode before we force playback mode, then
+		// reset the clock BEFORE invoking the callback. Recording startup
+		// depends on seeing nowTime == -PLAYBACK_EMPTY_TIME when it runs.
+		var _resumeImmediately = (editor_get_editmode() == 5);
+
+		editor_set_editmode(5);
+		nowTime = -PLAYBACK_EMPTY_TIME;
+		animTargetTime = -PLAYBACK_EMPTY_TIME;
+		reset_scoreboard();
+
+		if(!_resumeImmediately) {
 			call_later(0.5, time_source_units_seconds, function() {
 				playview_pause_and_resume(true);
 			});
@@ -1401,15 +1412,10 @@ function playview_start_replay(callback_func = undefined) {
 		}
 		else {
 			playview_pause_and_resume(true);
-			
+
 			if(callback_func != undefined)
 				callback_func();
 		}
-
-    	editor_set_editmode(5);
-    	nowTime = -PLAYBACK_EMPTY_TIME;
-    	animTargetTime = -PLAYBACK_EMPTY_TIME;
-    	reset_scoreboard();
 
 		// Start benchmark sampling if enabled.
 		if (global.benchmarkEnabled) {
