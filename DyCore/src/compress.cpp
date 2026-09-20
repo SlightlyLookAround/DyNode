@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -48,7 +49,10 @@ DYCORE_API double DyCore_compress_string(const char* str, char* targetBuffer,
     // Multithreaded compression for large inputs; the persistent context
     // keeps zstd's worker pool warm across saves. Small inputs stay
     // single-threaded, where spawning workers would only add overhead.
+    // ZSTD_CCtx is not safe for concurrent use — serialize every call.
+    static std::mutex compressMutex;
     static ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+    std::lock_guard<std::mutex> compressLock(compressMutex);
     const unsigned int workerCount =
         fSize >= (1u << 20) ? std::min(std::thread::hardware_concurrency(), 8u)
                             : 0;

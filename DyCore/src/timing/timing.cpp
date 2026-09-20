@@ -1,24 +1,15 @@
 #include "timing.h"
 
 #include <algorithm>
+#include <cmath>
+#include <mutex>
 
 TimingManager& get_timing_manager() {
     static TimingManager instance;
     return instance;
 }
 
-void TimingManager::clear() {
-    timingPoints.clear();
-    mark_modified();
-}
-
-void TimingManager::add_timing_point(TimingPoint timingPoint) {
-    timingPoints.push_back(timingPoint);
-    outOfOrder = true;
-    mark_modified();
-}
-
-void TimingManager::sort() {
+void TimingManager::sort_locked() {
     if (!outOfOrder)
         return;
     outOfOrder = false;
@@ -29,21 +20,42 @@ void TimingManager::sort() {
     mark_modified();
 }
 
+void TimingManager::sort() {
+    std::lock_guard lock(mtx);
+    sort_locked();
+}
+
+void TimingManager::clear() {
+    std::lock_guard lock(mtx);
+    timingPoints.clear();
+    mark_modified();
+}
+
+void TimingManager::add_timing_point(TimingPoint timingPoint) {
+    std::lock_guard lock(mtx);
+    timingPoints.push_back(timingPoint);
+    outOfOrder = true;
+    mark_modified();
+}
+
 void TimingManager::append_timing_points(
     const std::vector<TimingPoint>& points) {
+    std::lock_guard lock(mtx);
     timingPoints.insert(timingPoints.end(), points.begin(), points.end());
     outOfOrder = true;
     mark_modified();
 }
 
 void TimingManager::get_timing_points(std::vector<TimingPoint>& outPoints) {
-    sort();
+    std::lock_guard lock(mtx);
+    sort_locked();
     outPoints = timingPoints;
 }
 
 const double TIMING_POINT_EPSILON = 1;
 bool TimingManager::has_timing_point_at(double time) {
-    sort();
+    std::lock_guard lock(mtx);
+    sort_locked();
     auto it = std::lower_bound(
         timingPoints.begin(), timingPoints.end(), time,
         [](const TimingPoint& a, double b) { return a.time < b; });
@@ -69,7 +81,8 @@ bool TimingManager::has_timing_point_at(double time) {
 }
 
 bool TimingManager::get_timing_point_at(double time, TimingPoint& outPoint) {
-    sort();
+    std::lock_guard lock(mtx);
+    sort_locked();
     if (timingPoints.empty()) {
         return false;
     }
@@ -89,6 +102,7 @@ bool TimingManager::get_timing_point_at(double time, TimingPoint& outPoint) {
 
 void TimingManager::change_timing_point_at_time(double time,
                                                 const TimingPoint& tp) {
+    std::lock_guard lock(mtx);
     for (auto& point : timingPoints) {
         if (point.time == time) {
             point = tp;
@@ -100,6 +114,7 @@ void TimingManager::change_timing_point_at_time(double time,
 }
 
 void TimingManager::delete_timing_point_at_time(double time) {
+    std::lock_guard lock(mtx);
     timingPoints.erase(std::remove_if(timingPoints.begin(), timingPoints.end(),
                                       [time](const TimingPoint& point) {
                                           return point.time == time;
@@ -109,16 +124,17 @@ void TimingManager::delete_timing_point_at_time(double time) {
 }
 
 void TimingManager::add_offset(double offset) {
+    std::lock_guard lock(mtx);
     for (auto& point : timingPoints) {
         point.time += offset;
     }
     mark_modified();
 }
 
-void TimingManager::rebuild_segment_table() {
-    if (segmentTableBuiltTime == lastModifiedTime)
+void TimingManager::rebuild_segment_table_locked() {
+    if (segmentTableBuiltTime == lastModifiedTime.load(std::memory_order_relaxed))
         return;
-    sort();
+    sort_locked();
     segmentTable.clear();
     segmentTable.reserve(timingPoints.size());
     double totalBars = 1.0;
@@ -130,11 +146,12 @@ void TimingManager::rebuild_segment_table() {
                                    (timingPoints[i].beatLength * timingPoints[i].meter));
         }
     }
-    segmentTableBuiltTime = lastModifiedTime;
+    segmentTableBuiltTime = lastModifiedTime.load(std::memory_order_relaxed);
 }
 
 double TimingManager::time_to_bar(double time) {
-    rebuild_segment_table();
+    std::lock_guard lock(mtx);
+    rebuild_segment_table_locked();
     if (segmentTable.empty())
         return 0;
 
@@ -152,7 +169,8 @@ double TimingManager::time_to_bar(double time) {
 }
 
 double TimingManager::bar_to_time(double bar) {
-    rebuild_segment_table();
+    std::lock_guard lock(mtx);
+    rebuild_segment_table_locked();
     if (segmentTable.empty() || bar <= 0)
         return 0;
 
@@ -174,4 +192,29 @@ double TimingManager::time_add_bar_delta(double time, double deltaBars) {
         return time;
     double bar = time_to_bar(time);
     return bar_to_time(bar + deltaBars);
+}
+
+int TimingManager::count() {
+    std::lock_guard lock(mtx);
+    return static_cast<int>(timingPoints.size());
+}
+
+int TimingManager::size() {
+    return count();
+}
+
+nlohmann::json TimingManager::dump_json() {
+    std::lock_guard lock(mtx);
+    sort_locked();
+    return timingPoints;
+}
+
+std::string TimingManager::dump() {
+    return dump_json().dump();
+}
+
+TimingPoint TimingManager::operator[](int index) {
+    std::lock_guard lock(mtx);
+    sort_locked();
+    return timingPoints[index];
 }

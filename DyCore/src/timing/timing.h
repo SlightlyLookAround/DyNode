@@ -1,7 +1,9 @@
 #pragma once
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <json.hpp>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -62,25 +64,32 @@ struct TimingSegment {
     double barOffset;   // cumulative 1-based bar count at segment start
 };
 
+// All public accessors serialize on mtx. Async project-save workers read
+// timing points through get_timing_points while the editor thread mutates
+// the same vector; unlocked concurrent std::vector access crashes silently.
 class TimingManager {
    private:
+    // Autosave workers only read; editor-thread mutations are short. A plain
+    // mutex is enough and avoids shared_mutex upgrade issues around sort().
+    mutable std::mutex mtx;
     std::vector<TimingPoint> timingPoints;
     bool outOfOrder = false;
-    uint64_t lastModifiedTime = 0;
+    std::atomic<uint64_t> lastModifiedTime = 0;
 
     // Segment lookup table for fast time<->bar conversions.
     std::vector<TimingSegment> segmentTable;
     uint64_t segmentTableBuiltTime = 0;
 
     void mark_modified() {
-        lastModifiedTime++;
+        lastModifiedTime.fetch_add(1, std::memory_order_relaxed);
     }
 
-    void rebuild_segment_table();
+    void sort_locked();
+    void rebuild_segment_table_locked();
 
    public:
     uint64_t get_last_modified_time() const {
-        return lastModifiedTime;
+        return lastModifiedTime.load(std::memory_order_relaxed);
     }
 
     // Should be called before any operations that require sorted timing points.
@@ -103,28 +112,16 @@ class TimingManager {
     bool has_timing_point_at(double time);
     bool get_timing_point_at(double time, TimingPoint& outPoint);
 
-    int count() {
-        return timingPoints.size();
-    }
+    int count();
 
     // Dump the timing points array to JSON.
-    nlohmann::json dump_json() {
-        sort();
-        return timingPoints;
-    }
+    nlohmann::json dump_json();
     // Dump the timing points array to a string.
-    std::string dump() {
-        return dump_json().dump();
-    }
+    std::string dump();
 
-    int size() {
-        return timingPoints.size();
-    }
+    int size();
 
-    TimingPoint operator[](int index) {
-        sort();
-        return timingPoints[index];
-    }
+    TimingPoint operator[](int index);
     TimingPoint operator=(const TimingPoint& other) = delete;
 
     void change_timing_point_at_time(double time, const TimingPoint& tp);

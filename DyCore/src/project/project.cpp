@@ -247,6 +247,12 @@ void __async_save_project(SaveProjectParams params) {
                             string(e.what()));
         push_async_event({PROJECT_SAVING, -1, e.what(), params.requestId});
         return;
+    } catch (...) {
+        print_debug_message("Encounter non-std exception while snapshotting.");
+        push_async_event({PROJECT_SAVING, -1,
+                          "Unknown error while reading project data.",
+                          params.requestId});
+        return;
     }
 
     fs::path finalPath, tempPath;
@@ -304,6 +310,15 @@ void __async_save_project(SaveProjectParams params) {
                             gb2312ToUtf8(e.what()));
         err = true;
         errInfo = gb2312ToUtf8(e.what());
+    } catch (...) {
+        if (!tempFileVerified && !tempPath.empty()) {
+            std::error_code cleanupError;
+            fs::remove(tempPath, cleanupError);
+        }
+
+        print_debug_message("Encounter unknown exception while writing.");
+        err = true;
+        errInfo = "Unknown error while writing project file.";
     }
 
     push_async_event({PROJECT_SAVING, err ? -1 : 0, errInfo, params.requestId});

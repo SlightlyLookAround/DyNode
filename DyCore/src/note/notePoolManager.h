@@ -98,6 +98,10 @@ class NotePoolManager {
     void array_sort();
     void reclaim_memory();
     nptr get_note_pointer(const std::string &noteID);
+    // Call only while mtxNoteOps is already held.
+    bool array_sort_request_locked();
+    int get_index_lowerbound_locked(double time) const;
+    int get_index_upperbound_locked(double time) const;
 
     // Reduced from 64 MB to 4 MB. The pool falls through to the new/delete
     // resource for larger allocations; most charts need only a few MB of

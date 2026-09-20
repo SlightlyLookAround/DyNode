@@ -197,14 +197,15 @@ const Note& NotePoolManager::get_note_direct(int index) {
 }
 
 void NotePoolManager::set_note(const Note& note) {
-    nptr note_ptr;
-    {
-        std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
-        if (noteInfoMap.find(note.noteID) == noteInfoMap.end()) {
-            throw std::runtime_error("Note not found: " + note.noteID);
-        }
-        note_ptr = get_note_pointer(note.noteID);
-    }  // Release the manager lock
+    // Hold the exclusive lock through the write and hold/sub sync. Releasing
+    // early let autosave workers copy the same Note under a shared lock while
+    // this thread assigned std::string fields — a data race that crashed the
+    // process with no GML error dialog.
+    std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
+    if (noteInfoMap.find(note.noteID) == noteInfoMap.end()) {
+        throw std::runtime_error("Note not found: " + note.noteID);
+    }
+    nptr note_ptr = get_note_pointer(note.noteID);
     if (note_ptr->time != note.time)
         set_ooo();
     *note_ptr = note;
@@ -221,14 +222,11 @@ void NotePoolManager::set_note_bitwise(const char* prop) {
 
 void NotePoolManager::access_note(const std::string& noteID,
                                   std::function<void(Note&)> executor) {
-    nptr note_ptr;
-    {
-        std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
-        if (noteInfoMap.find(noteID) == noteInfoMap.end()) {
-            throw std::runtime_error("Note not found: " + noteID);
-        }
-        note_ptr = get_note_pointer(noteID);
-    }  // Release the manager lock
+    std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
+    if (noteInfoMap.find(noteID) == noteInfoMap.end()) {
+        throw std::runtime_error("Note not found: " + noteID);
+    }
+    nptr note_ptr = get_note_pointer(noteID);
 
     double origTime = note_ptr->time;
     executor(*note_ptr);
@@ -400,6 +398,10 @@ bool NotePoolManager::release_note(const Note& note) {
 
 bool NotePoolManager::array_sort_request() {
     std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
+    return array_sort_request_locked();
+}
+
+bool NotePoolManager::array_sort_request_locked() {
     if (!arrayOutOfOrder) [[likely]] {
         return false;
     }
@@ -488,6 +490,10 @@ NotePoolManager::nptr NotePoolManager::get_note_pointer(
 
 int NotePoolManager::get_index_upperbound(double time) {
     std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
+    return get_index_upperbound_locked(time);
+}
+
+int NotePoolManager::get_index_upperbound_locked(double time) const {
     if (arrayOutOfOrder) [[unlikely]]
         throw std::runtime_error(
             "Note array is out of order, cannot get index directly.");
@@ -503,6 +509,10 @@ int NotePoolManager::get_index_upperbound(double time) {
 
 int NotePoolManager::get_index_lowerbound(double time) {
     std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
+    return get_index_lowerbound_locked(time);
+}
+
+int NotePoolManager::get_index_lowerbound_locked(double time) const {
     if (arrayOutOfOrder) [[unlikely]]
         throw std::runtime_error(
             "Note array is out of order, cannot get index directly.");
@@ -554,16 +564,16 @@ static bool is_outscreen_cxx(double position, double width, int side) {
 }
 
 int NotePoolManager::batch_fix_notes() {
-    array_sort_request();
+    // Exclusive lock covers the whole mutation so autosave get_notes() cannot
+    // copy a Note while another thread writes its fields.
+    std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
+    array_sort_request_locked();
 
     std::vector<nptr> notes;
-    {
-        std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
-        notes.reserve(noteArray.size());
-        for (const auto& ptr : noteArray) {
-            if (ptr)
-                notes.push_back(ptr);
-        }
+    notes.reserve(noteArray.size());
+    for (const auto& ptr : noteArray) {
+        if (ptr)
+            notes.push_back(ptr);
     }
 
     std::atomic<int> fixCount{0};
@@ -594,24 +604,22 @@ int NotePoolManager::batch_timing_fix(double tpBeforeTime,
                                       double tpAfterBeatLen,
                                       double nextTPTime,
                                       bool& crossWarning) {
-    array_sort_request();
+    std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
+    array_sort_request_locked();
 
     const double timeL = tpBeforeTime;
     const double timeR = (nextTPTime < 0) ? 1e9 : (nextTPTime - 1.0);
 
-    int lo = get_index_lowerbound(timeL);
-    int hi = get_index_upperbound(timeR);
+    int lo = get_index_lowerbound_locked(timeL);
+    int hi = get_index_upperbound_locked(timeR);
     if (lo >= hi)
         return 0;
 
     std::vector<nptr> affected;
-    {
-        std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
-        affected.reserve(hi - lo);
-        for (int i = lo; i < hi; i++) {
-            if (noteArray[i])
-                affected.push_back(noteArray[i]);
-        }
+    affected.reserve(hi - lo);
+    for (int i = lo; i < hi; i++) {
+        if (noteArray[i])
+            affected.push_back(noteArray[i]);
     }
 
     if (affected.empty())
@@ -644,7 +652,8 @@ int NotePoolManager::batch_timing_fix(double tpBeforeTime,
 }
 
 int NotePoolManager::batch_randomize(char* outBuffer) {
-    array_sort_request();
+    std::lock_guard<std::shared_mutex> lock(mtxNoteOps);
+    array_sort_request_locked();
 
     struct NoteSnapshot {
         nptr ptr;
@@ -655,13 +664,10 @@ int NotePoolManager::batch_randomize(char* outBuffer) {
     };
 
     std::vector<NoteSnapshot> snapshots;
-    {
-        std::shared_lock<std::shared_mutex> lock(mtxNoteOps);
-        for (const auto& ptr : noteArray) {
-            if (ptr && ptr->type != static_cast<int>(NOTE_TYPE::SUB)) {
-                snapshots.push_back(
-                    {ptr, ptr->noteID, ptr->position, ptr->width, ptr->side});
-            }
+    for (const auto& ptr : noteArray) {
+        if (ptr && ptr->type != static_cast<int>(NOTE_TYPE::SUB)) {
+            snapshots.push_back(
+                {ptr, ptr->noteID, ptr->position, ptr->width, ptr->side});
         }
     }
 

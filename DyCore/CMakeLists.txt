@@ -64,10 +64,13 @@ add_subdirectory(lib/mimalloc EXCLUDE_FROM_ALL)
 
 # mimalloc's atomic operations intentionally cast between pointers and
 # integers (e.g. CAS on page->self).  Clang-cl treats these as errors
-# under strict mode; suppress the two relevant warnings.
-target_compile_options(mimalloc-static PRIVATE
-    -Wno-incompatible-pointer-types -Wno-int-conversion
-)
+# under strict mode; suppress the two relevant warnings. MSVC cl.exe does
+# not accept these flags.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(mimalloc-static PRIVATE
+        -Wno-incompatible-pointer-types -Wno-int-conversion
+    )
+endif()
 
 FetchContent_Declare(
     glm
