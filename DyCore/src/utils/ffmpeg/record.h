@@ -56,9 +56,13 @@ class Recorder {
         {"mpeg4", "-q:v 5 "},                // MPEG-4 Part 2 (widely available)
     };
 
-    // For async writing
+    // For async writing.
+    // Offline recording maps each encoded frame to a fixed 1/fps slot on the
+    // video timeline and muxes the project audio at a fixed -itsoffset.
+    // Dropping frames therefore desyncs A/V; the queue must apply backpressure
+    // instead. Capacity only absorbs encoder jitter (16 * ~8MB @1080p RGBA).
     std::thread writer_thread;
-    static constexpr size_t kFrameQueueCapacity = 2;
+    static constexpr size_t kFrameQueueCapacity = 16;
     std::vector<std::vector<char>> frame_queue;
     size_t frame_queue_head = 0;
     size_t frame_queue_count = 0;

@@ -1,12 +1,15 @@
 #include "record.h"
 
 #include <cctype>
+#include <charconv>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -117,6 +120,17 @@ bool has_token_word(const std::string& haystack, const std::string& needle) {
     return false;
 }
 
+// std::to_string(double) is locale-dependent and can emit "1,000000", which
+// FFmpeg's -itsoffset parser rejects or misreads.
+std::string format_seconds_locale_independent(double seconds) {
+    char buf[64];
+    auto result = std::to_chars(buf, buf + sizeof(buf), seconds,
+                                std::chars_format::fixed, 6);
+    if (result.ec != std::errc())
+        return "0.000000";
+    return std::string(buf, result.ptr);
+}
+
 }  // namespace
 
 // Return available encoders: "h264", "h265", "nvenc", "intel", "amd"
@@ -225,7 +239,8 @@ std::string Recorder::build_ffmpeg_cmd_utf8(std::string_view pixel_fmt,
     cmd.append(" -i - ");
     if (!musicPath.empty()) {
         cmd.append("-itsoffset ");
-        cmd.append(std::to_string(musicOffset) + " ");
+        cmd.append(format_seconds_locale_independent(musicOffset));
+        cmd.append(" ");
         cmd.append("-i ");
         cmd.append(quote_arg(musicPath));
         cmd.append(" -map 0:v -map 1:a -c:a aac -b:a 192k ");
@@ -342,29 +357,37 @@ static bool open_ffmpeg_pipe_utf8(FILE*& out, const std::string& cmdUtf8) {
 }
 
 void Recorder::writer_worker() {
-    while (recording_active || frame_queue_count > 0) {
+    while (true) {
         std::unique_lock<std::mutex> lock(queue_mutex);
         queue_cond.wait(
             lock, [this] { return frame_queue_count > 0 || !recording_active; });
 
-        if (frame_queue_count > 0) {
-            size_t head = frame_queue_head;
-            ++frame_queue_head;
-            if (frame_queue_head >= kFrameQueueCapacity)
-                frame_queue_head = 0;
-            --frame_queue_count;
-            lock.unlock();
+        if (frame_queue_count == 0)
+            break;
 
+        // Reserve the head slot until fwrite completes so push_frame cannot
+        // overwrite in-flight frame data.
+        const size_t head = frame_queue_head;
+        lock.unlock();
+
+        if (ffmpeg_pipe && head < frame_queue.size()) {
             std::vector<char>& frame_data = frame_queue[head];
-            if (ffmpeg_pipe) {
-                size_t written = fwrite(frame_data.data(), 1, frame_data.size(),
-                                        ffmpeg_pipe);
-                if (written != frame_data.size()) {
-                    print_debug_message(
-                        "Warning: Incomplete frame write to FFmpeg.");
-                }
+            size_t written = fwrite(frame_data.data(), 1, frame_data.size(),
+                                    ffmpeg_pipe);
+            if (written != frame_data.size()) {
+                print_debug_message(
+                    "Warning: Incomplete frame write to FFmpeg.");
             }
         }
+
+        lock.lock();
+        ++frame_queue_head;
+        if (frame_queue_head >= kFrameQueueCapacity)
+            frame_queue_head = 0;
+        if (frame_queue_count > 0)
+            --frame_queue_count;
+        lock.unlock();
+        queue_cond.notify_all();
     }
 }
 
@@ -372,13 +395,24 @@ int Recorder::start_recording(const std::string& filename,
                               const std::string& musicPath, int width,
                               int height, int fps, double musicOffset) {
 #ifdef _WIN32
+    // Abort paths on the GM side may skip finish_recording; never leak the
+    // previous writer thread or FFmpeg process into a new session.
+    finish_recording();
+
     std::string cmd = build_ffmpeg_cmd_utf8(pixelFormat, filename, musicPath,
                                             width, height, fps, musicOffset);
     if (!open_ffmpeg_pipe_utf8(ffmpeg_pipe, cmd)) {
         print_debug_message("Error: Failed to open pipe to FFmpeg.");
         return -1;
     }
-    recording_active = true;
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        frame_queue.clear();
+        frame_queue.resize(kFrameQueueCapacity);
+        frame_queue_head = 0;
+        frame_queue_count = 0;
+        recording_active = true;
+    }
     writer_thread = std::thread(&Recorder::writer_worker, this);
     print_debug_message("FFmpeg instantiated successfully. Start recording.");
     return 0;
@@ -399,6 +433,8 @@ int Recorder::start_recording(const std::wstring& filename,
                               const std::wstring& musicPath, int width,
                               int height, int fps, double musicOffset) {
 #ifdef _WIN32
+    finish_recording();
+
     std::string utf8name = wstringToUtf8(filename);
     std::string utf8musicPath = wstringToUtf8(musicPath);
     std::string cmd = build_ffmpeg_cmd_utf8(
@@ -407,7 +443,14 @@ int Recorder::start_recording(const std::wstring& filename,
         print_debug_message("Error: Failed to open pipe to FFmpeg.");
         return -1;
     }
-    recording_active = true;
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        frame_queue.clear();
+        frame_queue.resize(kFrameQueueCapacity);
+        frame_queue_head = 0;
+        frame_queue_count = 0;
+        recording_active = true;
+    }
     writer_thread = std::thread(&Recorder::writer_worker, this);
     print_debug_message("FFmpeg instantiated successfully. Start recording.");
     return 0;
@@ -462,30 +505,49 @@ int Recorder::push_frame(const void* frameData, int frameSize) {
     }
 
     try {
-        // Reuse a pre-allocated slot from the fixed ring buffer. Instead of
-        // allocating a fresh 8.3 MB vector per frame, the writer pops a slot
-        // and the next push reuses the same memory—only one per-frame copy.
-        // If the queue is full (ffmpeg stalled), drop the oldest frame to
-        // stay bounded at kFrameQueueCapacity × frameSize.
-        std::vector<char> out;
-        out.resize(static_cast<size_t>(frameSize));
-        std::memcpy(out.data(), frameData, static_cast<size_t>(frameSize));
-        {
-            std::lock_guard<std::mutex> lock(queue_mutex);
-            if (frame_queue.size() < kFrameQueueCapacity) {
-                frame_queue.resize(kFrameQueueCapacity);
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        if (frame_queue.size() < kFrameQueueCapacity)
+            frame_queue.resize(kFrameQueueCapacity);
+
+        // Never drop frames: each push is one fixed-fps slot on the video
+        // timeline. Dropping compresses the stream and desyncs muxed audio.
+        // Block until the writer frees a slot, with periodic FFmpeg health
+        // checks so a dead encoder cannot hang the game thread forever.
+        while (frame_queue_count >= kFrameQueueCapacity && recording_active) {
+            lock.unlock();
+            if (g_ffmpeg_pi.hProcess != NULL) {
+                DWORD health = WaitForSingleObject(g_ffmpeg_pi.hProcess, 0);
+                if (health == WAIT_OBJECT_0) {
+                    DWORD exit_code = 0;
+                    GetExitCodeProcess(g_ffmpeg_pi.hProcess, &exit_code);
+                    return fail(
+                        FFMPEG_PUSH_FRAME_PROCESS_EXITED,
+                        "FFmpeg process exited while waiting for queue space. "
+                        "Exit code: " +
+                            std::to_string(exit_code));
+                }
             }
-            if (frame_queue_count >= kFrameQueueCapacity) {
-                // Drop the oldest frame rather than growing unboundedly.
-                ++frame_queue_head;
-                if (frame_queue_head >= kFrameQueueCapacity)
-                    frame_queue_head = 0;
-                --frame_queue_count;
-            }
-            size_t tail = (frame_queue_head + frame_queue_count) % kFrameQueueCapacity;
-            frame_queue[tail] = std::move(out);
-            ++frame_queue_count;
+            lock.lock();
+            if (frame_queue_count < kFrameQueueCapacity || !recording_active)
+                break;
+            queue_cond.wait_for(lock, std::chrono::milliseconds(50));
         }
+
+        if (!recording_active) {
+            lock.unlock();
+            return fail(FFMPEG_PUSH_FRAME_NOT_RECORDING,
+                        "Recording stopped while waiting to enqueue a frame.");
+        }
+
+        const size_t frame_bytes = static_cast<size_t>(frameSize);
+        const size_t tail =
+            (frame_queue_head + frame_queue_count) % kFrameQueueCapacity;
+        std::vector<char>& slot = frame_queue[tail];
+        if (slot.size() != frame_bytes)
+            slot.resize(frame_bytes);
+        std::memcpy(slot.data(), frameData, frame_bytes);
+        ++frame_queue_count;
+        lock.unlock();
         queue_cond.notify_one();
         return FFMPEG_PUSH_FRAME_OK;
     } catch (const std::exception& e) {
@@ -513,7 +575,9 @@ void Recorder::finish_recording() {
         std::lock_guard lock(queue_mutex);
         recording_active = false;
     }
-    queue_cond.notify_one();
+    // Wake both the writer (drain remaining frames) and any push_frame
+    // blocked on a full queue.
+    queue_cond.notify_all();
     if (writer_thread.joinable())
         writer_thread.join();
 #ifdef _WIN32
