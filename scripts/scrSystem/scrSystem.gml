@@ -1081,8 +1081,11 @@ function theme_custom_apply() {
 	_custom.partColA = global.themeColorCustom;
 	_custom.partColB = global.themeColorCustom;
 	
-	if(global.themeAt == 3 && instance_exists(objMain))
-		objMain.themeColor = global.themeColorCustom;
+	if(global.themeAt == 3) {
+		if(instance_exists(objMain))
+			objMain.themeColor = global.themeColorCustom;
+		scribble_color_set("c_custom", global.themeColorCustom);
+	}
 }
 
 /// @param {Real} col GML colour integer (BGR, 24-bit).
@@ -1214,6 +1217,9 @@ function load_config() {
 	_check_set(_con, "themeColorCustom");
 	if(!is_real(global.themeColorCustom) || global.themeColorCustom < 0 || global.themeColorCustom > 0xFFFFFF)
 		global.themeColorCustom = make_colour_rgb(255, 214, 0);
+	_check_set(_con, "themeColorEditMode");
+	if(global.themeColorEditMode != 0 && global.themeColorEditMode != 1)
+		global.themeColorEditMode = 0;
 	theme_custom_apply();
 	_check_set(_con, "FPS", "fps");
 	_check_set(_con, "autosave");
@@ -1270,6 +1276,7 @@ function save_config() {
 	fast_file_save(get_config_path(), SnapToJSON({
 		theme: global.themeAt,
 		themeColorCustom: global.themeColorCustom,
+		themeColorEditMode: global.themeColorEditMode,
 		FPS: global.fps,
 		version: VERSION,
 		autosave: global.autosave,

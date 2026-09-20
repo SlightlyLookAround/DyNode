@@ -40,6 +40,12 @@ if(keycheck_down(vk_tab)) {
                 return global.benchmarkEnabled;
             }
             );
+        // HSV mode toggle: right of benchmark, same style; hidden off Custom theme.
+        _inst = new HSVModeCheckbox(
+            "hsv_mode",
+            _nw - layout.padding + layoutBar.w/4, layout.fromTop + 2*layout.paddingH,
+            layoutCheckbox.l
+            );
         _inst = new ParticleDensityButton(
             "particledensity",
             _nw - layoutBar.w/2, layout.fromTop + 2*layout.paddingH
@@ -64,11 +70,12 @@ if(keycheck_down(vk_tab)) {
             }
         );
         _inst.set_wh(layoutBar.w - 10, layoutBar.h + 10);
-        _inst = new BarColorChannel("custom_r", _nw - layout.padding - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "R");
+        var _colorY = layout.fromTop + 3*layout.paddingH + layout.colorRowOffset;
+        _inst = new BarColorChannel("custom_r", _nw - layout.padding - layoutBar.w/2, _colorY, 0);
         _inst.set_wh(layoutBar.w, layoutBar.h);
-        _inst = new BarColorChannel("custom_g", _nw - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "G");
+        _inst = new BarColorChannel("custom_g", _nw - layoutBar.w/2, _colorY, 1);
         _inst.set_wh(layoutBar.w, layoutBar.h);
-        _inst = new BarColorChannel("custom_b", _nw + layout.padding - layoutBar.w/2, layout.fromTop + 3*layout.paddingH, "B");
+        _inst = new BarColorChannel("custom_b", _nw + layout.padding - layoutBar.w/2, _colorY, 2);
         _inst.set_wh(layoutBar.w, layoutBar.h);
     }
     else {

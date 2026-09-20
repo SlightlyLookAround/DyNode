@@ -8,7 +8,9 @@ panelCloseRequest = false;
 layout = {
     fromTop : 100,
     padding : 600,
-    paddingH : 50
+    paddingH : 50,
+    // Extra gap under row-2 controls so color-bar titles (R/G/H/S) are not clipped.
+    colorRowOffset : 30
 }
 
 layoutBar = {

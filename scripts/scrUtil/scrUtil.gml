@@ -979,6 +979,35 @@ function color_rgb_to_hsv(rgb) {
     return [h/360, s, v];
 }
 
+/// @description Convert normalized hsv color to a GML color (BGR integer).
+/// @param {Real} _h Hue in [0,1] (0=0°, 1=360°).
+/// @param {Real} _s Saturation in [0,1].
+/// @param {Real} _v Value in [0,1].
+/// @returns {Real} GML color (BGR integer)
+function color_hsv_to_rgb(_h, _s, _v) {
+    // Underscore locals: bare h/s/v/c/x/m/r/g/b collide with GM builtins (esp. x).
+    var _hh = clamp(_h, 0, 1) * 360;
+    var _ss = clamp(_s, 0, 1);
+    var _vv = clamp(_v, 0, 1);
+    var _c = _vv * _ss;
+    var _x = _c * (1 - abs((_hh / 60) mod 2 - 1));
+    var _m = _vv - _c;
+    var _r, _g, _b;
+
+    if (_hh < 60) { _r = _c; _g = _x; _b = 0; }
+    else if (_hh < 120) { _r = _x; _g = _c; _b = 0; }
+    else if (_hh < 180) { _r = 0; _g = _c; _b = _x; }
+    else if (_hh < 240) { _r = 0; _g = _x; _b = _c; }
+    else if (_hh < 300) { _r = _x; _g = 0; _b = _c; }
+    else { _r = _c; _g = 0; _b = _x; }
+
+    return make_colour_rgb(
+        round((_r + _m) * 255),
+        round((_g + _m) * 255),
+        round((_b + _m) * 255)
+    );
+}
+
 
 
 /// @description Quickly set the shader's uniform with reals/ints or their arrays.

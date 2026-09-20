@@ -236,6 +236,10 @@
         "tab_particle_density": "粒子數量",
         "particle_density_low": "低",
         "particle_density_mid": "中",
-        "particle_density_high": "強"
+        "particle_density_high": "強",
+        "tab_color_hsv_mode": "HSV調整",
+        "tab_color_mode": "顏色模式",
+        "color_mode_rgb": "RGB",
+        "color_mode_hsv": "HSV"
     }
 }

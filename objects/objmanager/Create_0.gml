@@ -46,6 +46,7 @@ global.autoSaveTime = 60 * 3;
 global.analytics = true;
 global.particleEffects = 1;	// 0: off, 1: full, 2: low
 global.particleDensity = 2;	// 0: low, 1: mid, 2: high
+global.themeColorEditMode = 0;	// 0: RGB, 1: HSV
 
 global.debugGizmos = false;
 
