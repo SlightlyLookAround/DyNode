@@ -4,8 +4,10 @@
 global.__InputManager.freeze();
 
 if(capturing != "") {
-    // Capture mode: Esc cancels, Backspace restores the default, any other key applies.
-    // Axis actions capture the negative side first, then the positive side.
+    // Capture mode:
+    // Esc cancels, Backspace restores the default.
+    // Axis: negative side first, then positive side.
+    // Chord: collect keys, Enter confirms (min 2 keys recommended, 1 allowed).
     if(keyboard_check_pressed(vk_escape)) {
         end_capture();
     }
@@ -14,6 +16,49 @@ if(capturing != "") {
         save_config();
         announcement_play(i18n_get("kb_bind_reset", [keybind_action_display_name(capturing)]));
         end_capture();
+    }
+    else if(capturePhase == 2) {
+        // Chord capture: accumulate non-unique key presses until Enter.
+        if(keyboard_check_pressed(vk_enter)) {
+            if(array_length(captureChordKeys) == 0) {
+                announcement_warning("kb_bind_invalid");
+                end_capture();
+                return;
+            }
+            var _raw = captureChordKeys;
+            if(array_length(_raw) == 1) _raw = _raw[0];
+            var _res = keybind_set_binding(capturing, _raw);
+            if(_res.ok) {
+                save_config();
+                announcement_play(i18n_get("kb_bind_set",
+                    [keybind_action_display_name(capturing), keybind_binding_string_raw(capturing)]));
+                if(keybind_get_action(capturing).reserved)
+                    announcement_warning("kb_reserved");
+            }
+            else if(array_length(_res.conflict) > 0) {
+                var _names = "";
+                for(var i=0; i<array_length(_res.conflict); i++)
+                    _names += (i > 0 ? ", " : "") + keybind_action_display_name(_res.conflict[i]);
+                announcement_warning(i18n_get("kb_conflict", [_names]));
+            }
+            else {
+                announcement_warning("kb_bind_invalid");
+            }
+            end_capture();
+        }
+        else {
+            var _vk = keybind_capture_scan();
+            if(_vk > 0) {
+                var _mods = keybind_capture_mods();
+                var _keyStr = keybind_key_to_string({ vk: _vk, ctrl: _mods.ctrl, shift: _mods.shift, alt: _mods.alt });
+                var _dup = false;
+                for(var i=0; i<array_length(captureChordKeys); i++)
+                    if(captureChordKeys[i] == _keyStr) { _dup = true; break; }
+                if(!_dup)
+                    array_push(captureChordKeys, _keyStr);
+                io_clear();
+            }
+        }
     }
     else {
         var _vk = keybind_capture_scan();
@@ -105,15 +150,20 @@ else {
                 var _e = entries[_idx];
                 if(!_e.header) {
                     var _act = keybind_get_action(_e.id);
-                    // Choice / chord actions don't fit the single-key capture flow.
-                    if(_act.type == KBT_CHOICE || _act.type == KBT_CHORD) {
+                    // Choice actions still don't fit the capture flow.
+                    if(_is_choice_action(_act)) {
                         announcement_warning("kb_not_rebindable");
                     }
                     else {
                         capturing = _e.id;
-                        capturePhase = _is_axis_action(_act) ? 0 : -1;
                         captureNegKey = "";
+                        captureChordKeys = [];
+                        if(_act.type == KBT_CHORD)
+                            capturePhase = 2;
+                        else
+                            capturePhase = _is_axis_action(_act) ? 0 : -1;
                         io_clear();
+                        global.__InputManager.freeze();
                     }
                 }
             }

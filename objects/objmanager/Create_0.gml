@@ -87,6 +87,9 @@ global.difficultyCount = string_length(global.difficultyString);
 global.noteTypeName = ["NORMAL", "CHAIN", "HOLD", "SUB"];
 global.__GUIManager = undefined;
 
+// Difficulty-diff storage (multi-chart .dyn). Flag follows the project file.
+diff_storage_init();
+
 global.shadowCount = 0;
 // Used to distinguish different frames. Updated on begin step event.
 global.frameCurrentTime = 0;

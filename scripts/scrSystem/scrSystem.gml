@@ -12,6 +12,7 @@
 
 function map_close(shuttingDown = false) {
 	DyCore_project_save_invalidate();
+	diff_storage_init();
 	// A late completion belongs to the closed project, not its replacement.
 	with(objManager) {
 		pendingSaveRequestId = 0;
@@ -633,6 +634,18 @@ function project_load(_file = "") {
 	var path = dyc_chart_get_path();
 	var version = dyc_project_get_version();
 	var _propath = filename_path(_file);
+
+	// Restore difficulty-diff storage state from the dyn project file.
+	diff_storage_undo_reset_all();
+	if(is_struct(projectMetadata) && variable_struct_exists(projectMetadata, "difficultyDiff"))
+		diff_storage_apply_meta(projectMetadata.difficultyDiff);
+	else
+		diff_storage_apply_meta(undefined);
+	if(dyc_project_get_chart_count() > 1) {
+		// Multi-chart projects always treat difficulty-diff as enabled + locked.
+		global.diffStorageEnabled = true;
+		global.diffStorageCreated = true;
+	}
     
     var _path_deal = function(_pth, _propath) {
     	// Check if is relative path.
@@ -719,6 +732,7 @@ function project_save_as(_file = "") {
 			projectTime: objManager.projectTime,
 		},
 		settings: project_get_settings(),
+		difficultyDiff: diff_storage_get_meta(),
 	}));
 	DyCore_set_chart_metadata(json_stringify({
 		title: objMain.chartTitle,

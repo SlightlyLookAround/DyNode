@@ -44,9 +44,24 @@ class ProjectManager {
     void load_project(const Project &proj);
     void load_project_from_file(const char *filePath);
     int get_chart_count() const;
+    int get_current_chart_index() const;
     void set_current_chart(int index);
     // Update timing points and notes to the current chart.
     void update_current_chart();
+    /// Create a chart slot at the given difficulty.
+    /// copyFromCurrent=true copies notes+timing+colorKeyframes;
+    /// false creates a blank chart that still keeps the current timing points.
+    /// @return New chart index, or -1 on failure.
+    int create_chart(int difficulty, bool copyFromCurrent);
+    /// Delete the current chart and switch to an adjacent remaining one.
+    /// @return New current chart index, or -1 if deletion is not allowed.
+    int delete_current_chart();
+    /// @return Index of the chart with this difficulty, or -1.
+    int find_chart_by_difficulty(int difficulty) const;
+    /// @return Array of difficulty values for every stored chart.
+    std::vector<int> get_chart_difficulties() const;
+    /// Snapshot the current chart as a single-chart project (feature off).
+    Project create_single_chart_export_snapshot();
     uint64_t get_project_generation() const {
         return projectGeneration.load();
     }

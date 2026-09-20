@@ -293,11 +293,40 @@ function _keybind_collect_action_keys(_act, _out) {
             array_push(_out, _act.choices[c][i]);
 }
 
+/// Conflict signatures for an action.
+/// Chords are one composite signature (O+P does not collide with plain O);
+/// axis/hold pos/neg and choice options stay independent slots.
+function _keybind_action_signatures(_act) {
+    var _out = [];
+    if(_act.type == KBT_CHORD) {
+        if(array_length(_act.keys) == 0) return _out;
+        var _parts = [];
+        for(var i=0; i<array_length(_act.keys); i++)
+            array_push(_parts, _keybind_key_sig(_act.keys[i]));
+        array_sort(_parts, true);
+        array_push(_out, "CHORD:" + string_join_ext("+", _parts));
+        return _out;
+    }
+    if(_act.type == KBT_CHOICE) {
+        for(var c=0; c<array_length(_act.choices); c++) {
+            for(var i=0; i<array_length(_act.choices[c]); i++)
+                array_push(_out, _keybind_key_sig(_act.choices[c][i]));
+        }
+        return _out;
+    }
+    for(var i=0; i<array_length(_act.keys); i++)
+        array_push(_out, _keybind_key_sig(_act.keys[i]));
+    for(var i=0; i<array_length(_act.pos); i++)
+        array_push(_out, _keybind_key_sig(_act.pos[i]));
+    for(var i=0; i<array_length(_act.neg); i++)
+        array_push(_out, _keybind_key_sig(_act.neg[i]));
+    return _out;
+}
+
 function _keybind_action_has_key(_act, _sig) {
-    var _keys = [];
-    _keybind_collect_action_keys(_act, _keys);
-    for(var i=0; i<array_length(_keys); i++)
-        if(_keybind_key_sig(_keys[i]) == _sig) return true;
+    var _sigs = _keybind_action_signatures(_act);
+    for(var i=0; i<array_length(_sigs); i++)
+        if(_sigs[i] == _sig) return true;
     return false;
 }
 
@@ -517,7 +546,7 @@ function KeyBindManager() constructor {
         };
     }
 
-    /// Same-context exact-key duplicates among user overrides: the later registered
+    /// Same-context exact-binding duplicates among user overrides: the later registered
     /// action reverts to its preset-layer binding and the override is dropped.
     static _resolve_conflicts = function() {
         var _map = {};
@@ -525,10 +554,9 @@ function KeyBindManager() constructor {
             var _id = order[i];
             if(!variable_struct_exists(userBindings, _id)) continue;
             var _a = actions[$ _id];
-            var _keys = [];
-            _keybind_collect_action_keys(_a, _keys);
-            for(var j=0; j<array_length(_keys); j++) {
-                var _sig = _keybind_key_sig(_keys[j]) + "@" + _a.context;
+            var _sigs = _keybind_action_signatures(_a);
+            for(var j=0; j<array_length(_sigs); j++) {
+                var _sig = _sigs[j] + "@" + _a.context;
                 if(variable_struct_exists(_map, _sig)) {
                     show_debug_message_safe("Keybinds: '" + _id + "' conflicts with '"
                         + _map[$ _sig] + "' (same key in context '" + _a.context + "'); reverted to preset binding.");
@@ -726,7 +754,7 @@ function keybind_binding_string_raw(_id) {
     if(_a.type == KBT_CHOICE) {
         var _parts = [];
         for(var i=0; i<array_length(_a.choices); i++)
-            array_push(_parts, _keybind_keys_string(_a.choices[i]));
+            _parts[i] = _keybind_keys_string(_a.choices[i]);
         return string_join_ext("/", _parts);
     }
     var _isAxis = array_length(_a.pos) > 0 || array_length(_a.neg) > 0;
@@ -775,10 +803,7 @@ function keybind_set_binding(_id, _raw) {
         return { ok: false, error: "invalid binding for '" + _id + "'", conflict: [] };
 
     // Same-context conflict check against all other actions' effective bindings.
-    var _sigs = [];
-    _keybind_collect_action_keys(_copy, _sigs);
-    for(var i=0; i<array_length(_sigs); i++)
-        _sigs[i] = _keybind_key_sig(_sigs[i]);
+    var _sigs = _keybind_action_signatures(_copy);
     var _conflict = [];
     for(var i=0; i<array_length(_m.order); i++) {
         var _oid = _m.order[i];
@@ -877,7 +902,9 @@ function keybind_overlay_toggle() {
             instance_destroy();
     }
     else {
-        instance_create_depth(0, 0, -900, objKeybindOverlay);
+        var _inst = instance_create_depth(0, 0, -900, objKeybindOverlay);
+        // Rebuild after Create so late-registered actions always appear.
+        with(_inst) keybind_overlay_rebuild_lists();
     }
 }
 
@@ -904,8 +931,13 @@ function keybind_overlay_blocks_input() {
 }
 
 function keybind_panel_open() {
-    if(!instance_exists(objKeybindPanel))
+    if(!instance_exists(objKeybindPanel)) {
+        // Persistent overlay caches its list at Create; refresh so new actions show.
+        if(instance_exists(objKeybindOverlay))
+            with(objKeybindOverlay)
+                keybind_overlay_rebuild_lists();
         instance_create_depth(0, 0, -1000, objKeybindPanel);
+    }
 }
 
 function keybind_panel_toggle() {

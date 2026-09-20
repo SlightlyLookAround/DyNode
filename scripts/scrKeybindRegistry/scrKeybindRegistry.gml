@@ -101,6 +101,9 @@ function keybind_registry_init() {
     keybind_register_axis("main_note_speed", "main", ord("E"), ord("Q"));
     keybind_register_hold_axis("main_time_scroll", "main", ord("D"), ord("A"));
     keybind_register_axis("main_difficulty", "main", ord("P"), ord("O"), { ctrl: true });
+    keybind_register_chord("main_diff_storage_toggle", "main", [ord("O"), ord("P")]);
+    keybind_register("main_diff_storage_export", "main", KBT_PRESS, vk_f10);
+    keybind_register("main_diff_storage_delete", "main", KBT_PRESS, vk_delete, { shift: true });
 
     // ==== A.6 Global (objmanager) ====
 

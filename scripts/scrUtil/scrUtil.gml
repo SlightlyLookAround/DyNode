@@ -618,6 +618,12 @@ function show_question_i18n(str) {
 	return dyc_show_question(i18n_get(str));
 }
 
+/// Yes/No/Cancel question box with i18n.
+/// @returns {Real} 1 = Yes, 0 = No, -1 = Cancel.
+function show_question_ync_i18n(str, args = []) {
+	return dyc_show_question_ync(i18n_get(str, args));
+}
+
 function show_error_i18n(str, abort) {
 	return show_error(i18n_get(str), abort);
 }

@@ -1,4 +1,8 @@
+#include <fstream>
+#include <memory>
+
 #include "api.h"
+#include "compress.h"
 #include "format/dy.h"
 #include "format/dyn.h"
 #include "format/xml.h"
@@ -165,4 +169,116 @@ DYCORE_API double DyCore_set_project_version(const char* projectVersion) {
 
 DYCORE_API double DyCore_load_chart_audio(const char* filePath) {
     return chart_load_audio(filePath);
+}
+
+// =============================================================================
+// Difficulty-diff (multi-chart) APIs
+// =============================================================================
+
+DYCORE_API double DyCore_project_get_chart_count() {
+    return static_cast<double>(ProjectManager::inst().get_chart_count());
+}
+
+DYCORE_API double DyCore_project_get_current_chart_index() {
+    return static_cast<double>(ProjectManager::inst().get_current_chart_index());
+}
+
+DYCORE_API double DyCore_project_update_current_chart() {
+    ProjectManager::inst().update_current_chart();
+    return 0;
+}
+
+DYCORE_API double DyCore_project_set_current_chart(double index) {
+    try {
+        ProjectManager::inst().set_current_chart(static_cast<int>(index));
+        return 0;
+    } catch (const std::exception& e) {
+        throw_error_event(e.what());
+        return -1;
+    }
+}
+
+DYCORE_API double DyCore_project_create_chart(double difficulty,
+                                              double copyFromCurrent) {
+    try {
+        ProjectManager::inst().update_current_chart();
+        const int idx = ProjectManager::inst().create_chart(
+            static_cast<int>(difficulty), copyFromCurrent > 0);
+        return static_cast<double>(idx);
+    } catch (const std::exception& e) {
+        throw_error_event(e.what());
+        return -1;
+    }
+}
+
+DYCORE_API double DyCore_project_delete_current_chart() {
+    try {
+        ProjectManager::inst().update_current_chart();
+        return static_cast<double>(
+            ProjectManager::inst().delete_current_chart());
+    } catch (const std::exception& e) {
+        throw_error_event(e.what());
+        return -1;
+    }
+}
+
+DYCORE_API double DyCore_project_find_chart_by_difficulty(double difficulty) {
+    return static_cast<double>(
+        ProjectManager::inst().find_chart_by_difficulty(
+            static_cast<int>(difficulty)));
+}
+
+DYCORE_API const char* DyCore_project_get_chart_difficulties() {
+    static string result;
+    try {
+        result = nlohmann::json(ProjectManager::inst().get_chart_difficulties())
+                     .dump();
+    } catch (const std::exception& e) {
+        print_debug_message("Failed to get chart difficulties: " +
+                            string(e.what()));
+        result = "[]";
+    }
+    return result.c_str();
+}
+
+DYCORE_API double DyCore_project_export_current_as_single(const char* filePath,
+                                                          double compressionLevel) {
+    try {
+        if (!filePath || strlen(filePath) == 0) {
+            throw std::runtime_error("File path is empty.");
+        }
+        Project exportProject =
+            ProjectManager::inst().create_single_chart_export_snapshot();
+        const string projectString = nlohmann::json(exportProject).dump();
+        if (projectString.empty()) {
+            throw std::runtime_error("Empty single-chart project payload.");
+        }
+
+        auto buffer = std::make_unique<char[]>(
+            compress_bound(projectString.size()));
+        const double compressedSize = get_project_buffer(
+            projectString, buffer.get(), compressionLevel);
+        if (compressedSize < 0) {
+            throw std::runtime_error("Error compressing project data.");
+        }
+
+        const auto path = convert_char_to_path(filePath);
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open export file for writing.");
+        }
+        file.write(buffer.get(), static_cast<std::streamsize>(compressedSize));
+        file.close();
+        if (file.fail()) {
+            throw std::runtime_error("Failed to write export file.");
+        }
+        print_debug_message("Exported single-chart project to: " +
+                            string(filePath));
+        return 0;
+    } catch (const std::exception& e) {
+        print_debug_message("Failed to export single-chart project: " +
+                            string(e.what()));
+        throw_error_event(e.what());
+        return -1;
+    }
 }

@@ -46,6 +46,11 @@ DYCORE_API double DyCore_show_question(const char* question_text) {
     return show_question(question_text) ? 1.0 : 0.0;
 }
 
+/// Returns 1 = Yes, 0 = No, -1 = Cancel.
+DYCORE_API double DyCore_show_question_ync(const char* question_text) {
+    return static_cast<double>(show_question_ync(question_text));
+}
+
 DYCORE_API const char* DyCore_get_string(const char* prompt,
                                          const char* default_text) {
     static string result;

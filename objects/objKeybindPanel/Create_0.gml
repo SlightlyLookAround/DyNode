@@ -3,9 +3,14 @@
 persistent = false;
 
 capturing = "";
-// Capture phase: -1 = single key, 0 = axis negative side, 1 = axis positive side
+// Capture phase:
+// -1 = single key
+//  0 = axis negative side
+//  1 = axis positive side
+//  2 = chord (collect keys until Enter)
 capturePhase = -1;
 captureNegKey = "";
+captureChordKeys = [];
 scroll = 0;
 scrollTarget = 0;
 rowH = 32;
@@ -55,7 +60,7 @@ for(var c=0; c<array_length(_ctxs); c++) {
 }
 maxScroll = max(0, array_length(entries) * rowH - listH);
 
-// Same-context exact-key conflict map: id -> array of conflicting action ids
+// Same-context exact-binding conflict map: id -> array of conflicting action ids
 conflicts = {};
 
 function _refresh_conflicts() {
@@ -64,10 +69,9 @@ function _refresh_conflicts() {
     var _map = {};
     for(var i=0; i<array_length(_ids); i++) {
         var _a = keybind_get_action(_ids[i]);
-        var _keys = [];
-        _keybind_collect_action_keys(_a, _keys);
-        for(var j=0; j<array_length(_keys); j++) {
-            var _sig = _keybind_key_sig(_keys[j]) + "@" + _a.context;
+        var _sigs = _keybind_action_signatures(_a);
+        for(var j=0; j<array_length(_sigs); j++) {
+            var _sig = _sigs[j] + "@" + _a.context;
             if(variable_struct_exists(_map, _sig)) {
                 var _oid = _map[$ _sig];
                 if(!variable_struct_exists(conflicts, _ids[i])) conflicts[$ _ids[i]] = [];
@@ -86,6 +90,7 @@ function end_capture() {
     capturing = "";
     capturePhase = -1;
     captureNegKey = "";
+    captureChordKeys = [];
     io_clear();
     global.__InputManager.unfreeze();
 }
@@ -93,4 +98,8 @@ function end_capture() {
 /// Axis-shaped actions (pos/neg slots) get a two-phase capture (negative, then positive).
 function _is_axis_action(_act) {
     return _act.type == KBT_AXIS || array_length(_act.pos) > 0 || array_length(_act.neg) > 0;
+}
+
+function _is_choice_action(_act) {
+    return _act.type == KBT_CHOICE;
 }

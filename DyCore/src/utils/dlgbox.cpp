@@ -244,6 +244,20 @@ bool show_question(std::string_view question_text) {
     return (result == IDYES);
 }
 
+int show_question_ync(std::string_view question_text) {
+    std::wstring w_question_text = to_wstring(question_text);
+
+    const wchar_t* caption = L"Question";
+    UINT style = MB_YESNOCANCEL | MB_ICONQUESTION | MB_APPLMODAL;
+
+    int result =
+        MessageBoxW(get_hwnd_handle(), w_question_text.c_str(), caption, style);
+
+    if (result == IDYES) return 1;
+    if (result == IDNO) return 0;
+    return -1;
+}
+
 #include "resource.h"
 
 struct InputDialogData {

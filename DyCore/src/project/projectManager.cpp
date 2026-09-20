@@ -31,24 +31,179 @@ int ProjectManager::get_chart_count() const {
     return project.charts.size();
 }
 
+int ProjectManager::get_current_chart_index() const {
+    return currentChartIndex;
+}
+
+namespace {
+void load_notes_preserving_ids(const std::vector<Note>& notes) {
+    auto& pool = get_note_pool_manager();
+    pool.clear_notes();
+    for (const auto& note : notes) {
+        if (note.noteID.empty()) {
+            create_note(note);
+            continue;
+        }
+        Note n = note;
+        if (n.get_note_type() == NOTE_TYPE::HOLD && !n.subNoteID.empty()) {
+            Note sub = n;
+            std::swap(sub.noteID, sub.subNoteID);
+            sub.time = n.time + n.lastTime;
+            sub.lastTime = 0;
+            sub.beginTime = n.time;
+            sub.type = static_cast<int>(NOTE_TYPE::SUB);
+            if (!note_exists(sub.noteID)) {
+                insert_note(sub);
+            }
+        }
+        if (!note_exists(n.noteID)) {
+            insert_note(n);
+        } else {
+            pool.set_note(n);
+        }
+    }
+}
+}  // namespace
+
 void ProjectManager::set_current_chart(int index) {
     if (index < 0 || index >= get_chart_count()) {
         throw std::out_of_range("Chart index out of range");
     }
     currentChartIndex = index;
+    chartMetadataLastModifiedTime++;
 
     auto &currentChart = get_current_chart();
-    // Set notes.
-    get_note_pool_manager().clear_notes();
-    for (auto &note : currentChart.notes) {
-        create_note(note);
-    }
+    // Set notes. Preserve IDs when present so per-difficulty undo stays valid
+    // across in-session chart switches.
+    load_notes_preserving_ids(currentChart.notes);
 
     // Set timing points.
     get_timing_manager().clear();
     get_timing_manager().append_timing_points(currentChart.timingPoints);
 
-    print_debug_message("Current chart set to: " + currentChart.metadata.title);
+    print_debug_message("Current chart set to: " + currentChart.metadata.title +
+                        " difficulty=" +
+                        std::to_string(currentChart.metadata.difficulty) +
+                        " index=" + std::to_string(index));
+}
+
+int ProjectManager::create_chart(int difficulty, bool copyFromCurrent) {
+    if (!check_current_chart_set()) {
+        print_debug_message("Current chart is not set. Cannot create chart.");
+        return -1;
+    }
+
+    Chart newChart;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+        auto &src = get_current_chart();
+        newChart.metadata = src.metadata;
+        newChart.metadata.difficulty = difficulty;
+        newChart.path = src.path;
+        if (copyFromCurrent) {
+            newChart.notes = src.notes;
+            newChart.timingPoints = src.timingPoints;
+            newChart.colorKeyframes = src.colorKeyframes;
+        } else {
+            // Blank difficulty difference keeps the source timing points.
+            newChart.notes.clear();
+            newChart.timingPoints = src.timingPoints;
+            newChart.colorKeyframes.clear();
+        }
+    }
+
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    ++projectGeneration;
+    project.charts.push_back(std::move(newChart));
+    chartMetadataLastModifiedTime++;
+    const int newIndex = static_cast<int>(project.charts.size()) - 1;
+    print_debug_message("Created chart difficulty=" + std::to_string(difficulty) +
+                        " index=" + std::to_string(newIndex) +
+                        (copyFromCurrent ? " (copy)" : " (blank)"));
+    return newIndex;
+}
+
+int ProjectManager::delete_current_chart() {
+    if (!check_current_chart_set()) {
+        print_debug_message("Current chart is not set. Cannot delete chart.");
+        return -1;
+    }
+    if (get_chart_count() <= 1) {
+        print_debug_message("Cannot delete the last remaining chart.");
+        return -1;
+    }
+
+    int newIndex = -1;
+    {
+        std::lock_guard<std::shared_mutex> lock(mtx);
+        const int deletedIndex = currentChartIndex;
+        project.charts.erase(project.charts.begin() + deletedIndex);
+        ++projectGeneration;
+        chartMetadataLastModifiedTime++;
+
+        if (deletedIndex > 0)
+            newIndex = deletedIndex - 1;
+        else
+            newIndex = 0;
+        if (newIndex >= static_cast<int>(project.charts.size()))
+            newIndex = static_cast<int>(project.charts.size()) - 1;
+        currentChartIndex = newIndex;
+    }
+
+    // Load the adjacent chart into the live pools.
+    Chart loaded;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+        if (newIndex < 0 || newIndex >= static_cast<int>(project.charts.size()))
+            return -1;
+        loaded = project.charts[newIndex];
+    }
+    load_notes_preserving_ids(loaded.notes);
+    get_timing_manager().clear();
+    get_timing_manager().append_timing_points(loaded.timingPoints);
+    print_debug_message("Deleted chart, switched to index=" +
+                        std::to_string(newIndex));
+    return newIndex;
+}
+
+int ProjectManager::find_chart_by_difficulty(int difficulty) const {
+    std::shared_lock<std::shared_mutex> lock(mtx);
+    for (int i = 0; i < static_cast<int>(project.charts.size()); ++i) {
+        if (project.charts[i].metadata.difficulty == difficulty)
+            return i;
+    }
+    return -1;
+}
+
+std::vector<int> ProjectManager::get_chart_difficulties() const {
+    std::shared_lock<std::shared_mutex> lock(mtx);
+    std::vector<int> out;
+    out.reserve(project.charts.size());
+    for (const auto& chart : project.charts)
+        out.push_back(chart.metadata.difficulty);
+    return out;
+}
+
+Project ProjectManager::create_single_chart_export_snapshot() {
+    update_current_chart();
+    Project exportProject;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+        exportProject.version = project.version;
+        exportProject.metadata = project.metadata;
+        exportProject.colorTimelineEnabled = project.colorTimelineEnabled;
+        if (!check_current_chart_set()) {
+            throw std::runtime_error("Current chart is not set");
+        }
+        exportProject.charts.push_back(get_current_chart());
+    }
+
+    // Independent exported dyn files never enable difficulty-diff storage.
+    if (!exportProject.metadata.is_object())
+        exportProject.metadata = nlohmann::json::object();
+    exportProject.metadata["difficultyDiff"] = {
+        {"enabled", false}, {"created", false}, {"activeIndex", 0}};
+    return exportProject;
 }
 
 Chart &ProjectManager::get_current_chart() {
@@ -145,9 +300,23 @@ void ProjectManager::load_project_from_file(const char *filePath) {
 
     // load_all_audio_data();
 
-    // Todo: (Future feature) Manually choose chart to start editing.
+    // Restore the last active difficulty-diff chart when present.
     if (get_chart_count() > 0) {
-        set_current_chart(0);
+        int activeIndex = 0;
+        try {
+            if (project.metadata.is_object() &&
+                project.metadata.contains("difficultyDiff") &&
+                project.metadata["difficultyDiff"].is_object() &&
+                project.metadata["difficultyDiff"].contains("activeIndex")) {
+                activeIndex =
+                    project.metadata["difficultyDiff"]["activeIndex"].get<int>();
+            }
+        } catch (const std::exception&) {
+            activeIndex = 0;
+        }
+        if (activeIndex < 0 || activeIndex >= get_chart_count())
+            activeIndex = 0;
+        set_current_chart(activeIndex);
     } else {
         throw std::runtime_error(
             "This project does not contain any chart. The project file may be "

@@ -203,12 +203,10 @@ chartSideType = _metadata.sideType;
 
 #region Chart Properties Update
 
-	// Adjust Difficulty
+	// Adjust Difficulty / switch difficulty-diff charts.
 	var _diff_delta = bind_axis("main_difficulty");
-	chartDifficulty += _diff_delta;
-	chartDifficulty = clamp(chartDifficulty, 0, global.difficultyCount - 1);
-    if(_diff_delta != 0)
-        dyc_chart_set_difficulty(chartDifficulty);
+	if(_diff_delta != 0)
+		diff_storage_on_difficulty_axis(_diff_delta);
 
     var noteCount = dyc_get_note_count();
 

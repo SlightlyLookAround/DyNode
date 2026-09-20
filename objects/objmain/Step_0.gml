@@ -149,6 +149,9 @@ projectTime += round(delta_time / 1000);
 		announcement_play("clear_all_notes");
 	}
 
+	// Difficulty-diff storage: O+P toggle, F10 export, Shift+Delete delete.
+	diff_storage_step();
+
 #endregion
   
 #region Scoreboard Update

@@ -16,20 +16,26 @@ listH = BASE_RES_H - listY - 70;
 // Column A: editor; Column B: main + global
 colA = [];
 colB = [];
-var _ctxs = ["editor", "main", "global"];
-var _ids = keybind_action_ids();
-for(var c=0; c<array_length(_ctxs); c++) {
-    var _target = c == 0 ? colA : colB;
-    array_push(_target, { header: true, ctx: _ctxs[c], id: "" });
-    for(var i=0; i<array_length(_ids); i++) {
-        var _a = keybind_get_action(_ids[i]);
-        if(_a.context == _ctxs[c])
-            array_push(_target, { header: false, ctx: _ctxs[c], id: _ids[i] });
+
+function keybind_overlay_rebuild_lists() {
+    colA = [];
+    colB = [];
+    var _ctxs = ["editor", "main", "global"];
+    var _ids = keybind_action_ids();
+    for(var c=0; c<array_length(_ctxs); c++) {
+        var _target = c == 0 ? colA : colB;
+        array_push(_target, { header: true, ctx: _ctxs[c], id: "" });
+        for(var i=0; i<array_length(_ids); i++) {
+            var _a = keybind_get_action(_ids[i]);
+            if(_a != undefined && _a.context == _ctxs[c])
+                array_push(_target, { header: false, ctx: _ctxs[c], id: _ids[i] });
+        }
     }
+    maxScroll = max(0, max(array_length(colA), array_length(colB)) * rowH - listH);
+    maxRows = max(array_length(colA), array_length(colB));
 }
 
-maxScroll = max(0, max(array_length(colA), array_length(colB)) * rowH - listH);
-maxRows = max(array_length(colA), array_length(colB));
+keybind_overlay_rebuild_lists();
 
 // Scrollbar drag state
 scrollDragging = false;

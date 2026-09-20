@@ -136,9 +136,19 @@ if(capturing != "") {
     draw_rectangle(x0, listY, x0 + panelW, listY + listH, false);
 
     var _capName = keybind_action_display_name(capturing);
-    if(capturePhase >= 0)
-        _capName += capturePhase == 0 ? "  [-]" : "  [+]";
+    if(capturePhase == 0)
+        _capName += "  [-]";
+    else if(capturePhase == 1)
+        _capName += "  [+]";
+    else if(capturePhase == 2) {
+        var _chordPreview = array_length(captureChordKeys) == 0
+            ? i18n_get("kb_panel_capture_chord_empty")
+            : string_join_ext(" + ", captureChordKeys);
+        _capName += "  [" + _chordPreview + "]";
+    }
     var _capMsg = keybind_text_cjk(i18n_get("kb_panel_capture", [_capName]));
+    if(capturePhase == 2)
+        _capMsg = keybind_text_cjk(i18n_get("kb_panel_capture_chord", [_capMsg]));
     scribble(_capMsg, "KB_P_CAP_" + capturing + string(capturePhase))
         .starting_format("mSpaceMono", _col)
         .align(fa_center, fa_middle)

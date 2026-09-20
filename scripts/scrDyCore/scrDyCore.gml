@@ -834,6 +834,54 @@ function dyc_show_question(text) {
     return result > 0 ? true : false;
 }
 
+/// Yes/No/Cancel dialog.
+/// @returns {Real} 1 = Yes, 0 = No, -1 = Cancel.
+function dyc_show_question_ync(text) {
+    return DyCore_show_question_ync(text);
+}
+
+// =============================================================================
+// Difficulty-diff (multi-chart) API wrappers
+// =============================================================================
+
+function dyc_project_get_chart_count() {
+    return DyCore_project_get_chart_count();
+}
+
+function dyc_project_get_current_chart_index() {
+    return DyCore_project_get_current_chart_index();
+}
+
+function dyc_project_update_current_chart() {
+    return DyCore_project_update_current_chart();
+}
+
+function dyc_project_set_current_chart(index) {
+    return DyCore_project_set_current_chart(index);
+}
+
+function dyc_project_create_chart(difficulty, copyFromCurrent) {
+    return DyCore_project_create_chart(difficulty, copyFromCurrent);
+}
+
+function dyc_project_delete_current_chart() {
+    return DyCore_project_delete_current_chart();
+}
+
+function dyc_project_find_chart_by_difficulty(difficulty) {
+    return DyCore_project_find_chart_by_difficulty(difficulty);
+}
+
+/// @returns {Array<Real>} Difficulty values of every stored chart.
+function dyc_project_get_chart_difficulties() {
+    try {
+        return json_parse(DyCore_project_get_chart_difficulties());
+    } catch (e) {
+        show_debug_message("Error parsing chart difficulties: " + string(e));
+        return [];
+    }
+}
+
 function dyc_get_string(prompt, default_text) {
     var result = DyCore_get_string(prompt, default_text);
     if(result == "<%$><.3>TERMINATED<!#><##>") return "";

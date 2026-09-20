@@ -12,5 +12,9 @@ std::optional<std::filesystem::path> get_open_filename(
 
 bool show_question(std::string_view question_text);
 
+/// Yes / No / Cancel dialog.
+/// @return 1 = Yes, 0 = No, -1 = Cancel.
+int show_question_ync(std::string_view question_text);
+
 std::optional<std::string> get_string(std::string_view prompt,
                                       std::string_view default_text);
