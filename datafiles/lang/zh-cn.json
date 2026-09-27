@@ -402,7 +402,7 @@
         "diff_storage_created_from": "已成功基于 $0 难度创建 $1 难度差分。",
         "diff_storage_created_blank": "已成功创建 $0 难度差分。",
         "diff_storage_create_failed": "创建 $0 难度差分失败。",
-        "diff_storage_first_create_notice": "这是您在本模式下第一次创建难度差分，您将无法在该工程文件中再次关闭该功能，请注意。",
+        "diff_storage_first_create_notice": "这是您在本模式下第一次创建难度差分，您将无法在该工程文件中再次关闭该功能，请注意。\n同时，本项目文件将不再具备与原版 DyNode 的兼容性，若强行打开，将出现潜在的数据丢失风险。\n若需要在原版 DyNode 中打开，请导出本难度的独立工程文件后再进行后续操作。",
         "diff_storage_switched": "已切换至 $0 难度差分。",
         "diff_storage_switch_failed": "切换难度差分失败。",
         "diff_storage_export_success": "已成功导出 $0 难度的独立工程文件。",

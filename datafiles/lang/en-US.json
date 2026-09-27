@@ -402,7 +402,7 @@
         "diff_storage_created_from": "Successfully created $1 difficulty difference based on $0.",
         "diff_storage_created_blank": "Successfully created $0 difficulty difference.",
         "diff_storage_create_failed": "Failed to create $0 difficulty difference.",
-        "diff_storage_first_create_notice": "This is the first time you created a difficulty difference in this mode. You will no longer be able to turn this feature off in this project file.",
+        "diff_storage_first_create_notice": "This is the first time you created a difficulty difference in this mode. You will no longer be able to turn this feature off in this project file.\nThis project file will no longer be compatible with the original DyNode. Opening it there may cause data loss.\nIf you need to open it in the original DyNode, export this difficulty as an independent project file first.",
         "diff_storage_switched": "Switched to $0 difficulty difference.",
         "diff_storage_switch_failed": "Failed to switch difficulty difference.",
         "diff_storage_export_success": "Successfully exported independent project for $0 difficulty.",

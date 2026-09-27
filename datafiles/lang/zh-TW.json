@@ -256,7 +256,7 @@
         "diff_storage_created_from": "已成功基於 $0 難度建立 $1 難度差分。",
         "diff_storage_created_blank": "已成功建立 $0 難度差分。",
         "diff_storage_create_failed": "建立 $0 難度差分失敗。",
-        "diff_storage_first_create_notice": "這是您在本模式下第一次建立難度差分，您將無法在該工程檔案中再次關閉該功能，請注意。",
+        "diff_storage_first_create_notice": "這是您在本模式下第一次建立難度差分，您將無法在該工程檔案中再次關閉該功能，請注意。\n同時，本專案檔案將不再具備與原版 DyNode 的相容性，若強行開啟，將出現潛在的資料遺失風險。\n若需要在原版 DyNode 中開啟，請匯出本難度的獨立工程檔案後再進行後續操作。",
         "diff_storage_switched": "已切換至 $0 難度差分。",
         "diff_storage_switch_failed": "切換難度差分失敗。",
         "diff_storage_export_success": "已成功匯出 $0 難度的獨立工程檔案。",

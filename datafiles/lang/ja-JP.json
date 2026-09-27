@@ -256,7 +256,7 @@
         "diff_storage_created_from": "$0 難易度を基に $1 難易度の差分を作成しました。",
         "diff_storage_created_blank": "$0 難易度の差分を作成しました。",
         "diff_storage_create_failed": "$0 難易度の差分作成に失敗しました。",
-        "diff_storage_first_create_notice": "本モードで初めて難易度差分を作成しました。このプロジェクトファイルでは、今後この機能をオフにできません。",
+        "diff_storage_first_create_notice": "本モードで初めて難易度差分を作成しました。このプロジェクトファイルでは、今後この機能をオフにできません。\nこのプロジェクトファイルは原版 DyNode との互換性を失います。無理に開くとデータが失われる恐れがあります。\n原版 DyNode で開く必要がある場合は、先にこの難易度の独立プロジェクトを書き出してください。",
         "diff_storage_switched": "$0 難易度の差分に切り替えました。",
         "diff_storage_switch_failed": "難易度差分の切り替えに失敗しました。",
         "diff_storage_export_success": "$0 難易度の独立プロジェクトを書き出しました。",
