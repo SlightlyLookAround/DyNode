@@ -169,7 +169,9 @@ set(DYCORE_COMMON_INCLUDE_DIRS
     src/render
     src/video
     src/audio
+    src/mcp
     lib/
+    lib/httplib
     lib/pugixml
     res/
     ${CMAKE_BINARY_DIR}/generated
@@ -199,6 +201,7 @@ function(dycore_apply_common_target_settings target)
         mimalloc-static zstd lua pugixml delaunator glm::glm xxhash sentry
         $<$<PLATFORM_ID:Windows>:imm32>
         $<$<PLATFORM_ID:Windows>:winhttp>
+        $<$<PLATFORM_ID:Windows>:ws2_32>
     )
 endfunction()
 

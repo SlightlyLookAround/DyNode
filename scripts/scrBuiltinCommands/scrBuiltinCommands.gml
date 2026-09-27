@@ -22,7 +22,8 @@ global.BUILTIN_COMMANDS = [
     CommandDuplicate,
     CommandDeduplicate,
     CommandThemeCustom,
-    CommandBind
+    CommandBind,
+    CommandMcpServ
 ]
 
 function CommandWidth():CommandSignature("width", ["w", "wid"]) constructor {
@@ -779,6 +780,155 @@ function command_arg_to_note_type(arg) {
             throw "Invalid note type: '" + string(arg) + "'.";
     }
 }
+
+// MCP server console controls.
+// Usage:
+//   .mcpserv
+//   .mcpserv on [port]
+//   .mcpserv off
+//   .mcpserv restart [port]
+//   .mcpserv default on|off
+//   .mcpserv port <n>
+//   .mcpserv token | url | info | help
+function CommandMcpServ():CommandSignature("mcpserv", ["mcp"]) constructor {
+    add_variant(0, -1, "Manage the DyNode MCP server (status / on / off / restart / default / port / token / url / info).");
+
+    static execute = function(args, matchedVariant) {
+        var _sub = array_length(args) > 0 ? string_lower(string_trim(args[0])) : "status";
+
+        switch(_sub) {
+            case "status":
+            case "info":
+            case "i":
+                mcp_cmd_status(_sub == "info" || _sub == "i");
+                break;
+
+            case "on":
+            case "start": {
+                var _port = mcp_prefs_load().port;
+                if(array_length(args) > 1) _port = real(args[1]);
+                var _info = json_parse(DyCore_mcp_start(_port));
+                if(_info[$ "ok"]) {
+                    console_echo("MCP started: " + string(_info[$ "url"]));
+                    console_echo("Token: " + string(_info[$ "token"]));
+                    mcp_save_info_file(_info);
+                } else {
+                    console_echo_error("MCP start failed: " + string(_info[$ "error"] ?? "unknown"));
+                }
+                break;
+            }
+
+            case "off":
+            case "stop": {
+                var _info = json_parse(DyCore_mcp_stop());
+                console_echo("MCP stopped.");
+                break;
+            }
+
+            case "restart": {
+                var _port = mcp_prefs_load().port;
+                if(array_length(args) > 1) _port = real(args[1]);
+                json_parse(DyCore_mcp_stop());
+                var _info = json_parse(DyCore_mcp_start(_port));
+                if(_info[$ "ok"]) {
+                    console_echo("MCP restarted: " + string(_info[$ "url"]));
+                    console_echo("Token: " + string(_info[$ "token"]));
+                    mcp_save_info_file(_info);
+                } else {
+                    console_echo_error("MCP restart failed: " + string(_info[$ "error"] ?? "unknown"));
+                }
+                break;
+            }
+
+            case "default": {
+                if(array_length(args) < 2) {
+                    var _p = mcp_prefs_load();
+                    console_echo("mcpserv default is " + (_p.defaultStart ? "on" : "off") + " (launch auto-start).");
+                    console_echo("Usage: mcpserv default on|off");
+                    break;
+                }
+                var _val = string_lower(string_trim(args[1]));
+                if(_val != "on" && _val != "off" && _val != "true" && _val != "false") {
+                    console_echo_error("Usage: mcpserv default on|off");
+                    break;
+                }
+                var _prefs = mcp_prefs_load();
+                _prefs.defaultStart = (_val == "on" || _val == "true");
+                mcp_prefs_save(_prefs);
+                console_echo("Launch auto-start is now " + (_prefs.defaultStart ? "ON" : "OFF") + ".");
+                break;
+            }
+
+            case "port": {
+                if(array_length(args) < 2) {
+                    console_echo("Preferred port: " + string(mcp_prefs_load().port));
+                    console_echo("Usage: mcpserv port <number>");
+                    break;
+                }
+                var _port = real(args[1]);
+                if(_port < 1 || _port > 65535) {
+                    console_echo_error("Port must be 1-65535.");
+                    break;
+                }
+                var _prefs = mcp_prefs_load();
+                _prefs.port = _port;
+                mcp_prefs_save(_prefs);
+                console_echo("Preferred port set to " + string(_port) + " (applies on next start).");
+                break;
+            }
+
+            case "token": {
+                var _info = json_parse(DyCore_mcp_get_info());
+                if(_info[$ "running"]) console_echo("Token: " + string(_info[$ "token"]));
+                else console_echo_warning("MCP is not running.");
+                break;
+            }
+
+            case "url": {
+                var _info = json_parse(DyCore_mcp_get_info());
+                if(_info[$ "running"]) console_echo("URL: " + string(_info[$ "url"]));
+                else console_echo_warning("MCP is not running.");
+                break;
+            }
+
+            case "help":
+            case "?":
+                console_echo("mcpserv                 Show server status");
+                console_echo("mcpserv on [port]       Start server");
+                console_echo("mcpserv off             Stop server");
+                console_echo("mcpserv restart [port]  Restart server");
+                console_echo("mcpserv default on|off  Auto-start when DyNode launches (default: off)");
+                console_echo("mcpserv port <n>        Set preferred port (8765-8775 fallback)");
+                console_echo("mcpserv token           Show auth token");
+                console_echo("mcpserv url             Show MCP endpoint URL");
+                console_echo("mcpserv info            Dump full server JSON");
+                break;
+
+            default:
+                console_echo_error("Unknown mcpserv subcommand: " + _sub + ". Try: mcpserv help");
+                break;
+        }
+    }
+}
+
+function mcp_cmd_status(verbose) {
+    var _info = json_parse(DyCore_mcp_get_info());
+    var _prefs = mcp_prefs_load();
+    var _running = _info[$ "running"] ?? false;
+    console_echo("MCP server: " + (_running ? "RUNNING" : "STOPPED"));
+    if(_running) {
+        console_echo("  URL:   " + string(_info[$ "url"]));
+        console_echo("  Port:  " + string(_info[$ "port"]));
+        console_echo("  Token: " + string(_info[$ "token"]));
+        console_echo("  Sessions: " + string(_info[$ "sessions"] ?? 0));
+    }
+    console_echo("  Launch auto-start: " + (_prefs.defaultStart ? "on" : "off"));
+    console_echo("  Preferred port:    " + string(_prefs.port));
+    if(verbose) {
+        console_echo(json_stringify(_info));
+    }
+}
+
 
 function command_check_in_editor(abort = true) {
     if(!instance_exists(objEditor)) {

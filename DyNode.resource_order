@@ -301,6 +301,7 @@
     {"name":"scribble","order":11,"path":"scripts/scribble/scribble.yy",},
     {"name":"scrInput","order":8,"path":"scripts/scrInput/scrInput.yy",},
     {"name":"scrLua","order":9,"path":"scripts/scrLua/scrLua.yy",},
+    {"name":"scrMcp","order":10,"path":"scripts/scrMcp/scrMcp.yy",},
     {"name":"scrNote","order":6,"path":"scripts/scrNote/scrNote.yy",},
     {"name":"scrSystem","order":3,"path":"scripts/scrSystem/scrSystem.yy",},
     {"name":"scrTest","order":17,"path":"scripts/scrTest/scrTest.yy",},

@@ -233,3 +233,4 @@ function attach(inst) {
 set_div(4);			// Default divisor set to 4
 
 dyc_editor_set_ready(true);
+mcp_start_if_enabled();

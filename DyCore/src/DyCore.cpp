@@ -1,5 +1,6 @@
 
 #include "DyCore.h"
+#include "mcpServer.h"
 
 #include <windef.h>
 #include <winuser.h>
@@ -151,6 +152,7 @@ DYCORE_API double DyCore_shutdown() {
     };
     cleanup("project saves", [] { shutdown_project_saves(); });
     cleanup("background tasks", [] { background_tasks::join_all(); });
+    cleanup("MCP", [] { mcp::McpServer::inst().stop(); });
     cleanup("Lua", [] { cancel_lua_script(); });
     cleanup("recorder", [] { shutdown_recorder(); });
     cleanup("video", [] { VideoDecoder::shutdown_instance(); });

@@ -4,6 +4,7 @@ enum DYCORE_ASYNC_EVENT_TYPE { PROJECT_SAVING, GENERAL_ERROR, GM_ANNOUNCEMENT, O
 function DyCoreManager() constructor {
     // DyCore Step function.
     static step = function() {
+        mcp_step();
         // Manage async events.
         if(DyCore_has_async_event()) {
             var _async_event = DyCore_get_async_event();
