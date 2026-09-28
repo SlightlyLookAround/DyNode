@@ -102,6 +102,9 @@ global.isSaving = false;
 global.benchmarkEnabled = false;
 global.benchmarkRecording = false;
 global.benchmarkSamples = [];
+// Preview lyrics overlay (LRC/SRT), off by default. See scrLyrics.
+global.lyricsEnabled = false;
+lyrics_state();
 
 // Generate Temp Sprite
 

@@ -167,4 +167,6 @@ var _nw = BASE_RES_W, _nh = BASE_RES_H;
 						draw_event(true);
 					}
 				}
-	
+
+	// Preview lyrics (LRC/SRT), audio-synced, centered in the bottom bar.
+	lyrics_draw();

@@ -29,17 +29,21 @@ if(keycheck_down(vk_tab)) {
                 return !is_undefined(objMain.channel);
             }
             );
-        _inst = new Checkbox(
-            "benchmark",
-            _nw - layout.padding - layoutBar.w/2, layout.fromTop + 2*layout.paddingH,
-            layoutCheckbox.l, i18n_get("tab_benchmark"),
-            0, function (val) {
-                global.benchmarkEnabled = !val;
-                return !val;
-            }, function () {
-                return global.benchmarkEnabled;
-            }
-            );
+        // Lyrics toggle: directly above HSV, same row as pitchshift. Shown only when a lyric file exists.
+        if(lyrics_files_present()) {
+            _inst = new Checkbox(
+                "lyrics",
+                _nw - layout.padding + layoutBar.w/4, layout.fromTop + layout.paddingH,
+                layoutCheckbox.l, i18n_get("tab_lyrics"),
+                0, function (val) {
+                    global.lyricsEnabled = !val;
+                    if(global.lyricsEnabled) lyrics_reload();
+                    return !val;
+                }, function () {
+                    return global.lyricsEnabled;
+                }
+                );
+        }
         // HSV mode toggle: right of benchmark, same style; hidden off Custom theme.
         _inst = new HSVModeCheckbox(
             "hsv_mode",
@@ -70,6 +74,17 @@ if(keycheck_down(vk_tab)) {
             }
         );
         _inst.set_wh(layoutBar.w - 10, layoutBar.h + 10);
+        _inst = new Checkbox(
+            "benchmark",
+            _nw - layout.padding - layoutBar.w/2, layout.fromTop + 2*layout.paddingH,
+            layoutCheckbox.l, i18n_get("tab_benchmark"),
+            0, function (val) {
+                global.benchmarkEnabled = !val;
+                return !val;
+            }, function () {
+                return global.benchmarkEnabled;
+            }
+            );
         var _colorY = layout.fromTop + 3*layout.paddingH + layout.colorRowOffset;
         _inst = new BarColorChannel("custom_r", _nw - layout.padding - layoutBar.w/2, _colorY, 0);
         _inst.set_wh(layoutBar.w, layoutBar.h);
@@ -82,6 +97,6 @@ if(keycheck_down(vk_tab)) {
         save_config();
         gui_manager_destroy();
     }
-    
+
     active = !active;
 }

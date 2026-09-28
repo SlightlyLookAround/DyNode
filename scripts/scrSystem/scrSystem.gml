@@ -13,6 +13,7 @@
 function map_close(shuttingDown = false) {
 	DyCore_project_save_invalidate();
 	diff_storage_init();
+	lyrics_clear();
 	// A late completion belongs to the closed project, not its replacement.
 	with(objManager) {
 		pendingSaveRequestId = 0;
@@ -341,8 +342,9 @@ function music_load(_file = "") {
     }
     objManager.musicPath = _file;
     show_debug_message_safe("Load sucessfully.");
-    
+
     announcement_play("anno_music_load_complete", 1000);
+    lyrics_reload();
 }
 
 function background_load(_file = "") {
@@ -587,6 +589,7 @@ function project_sideload(_file) {
 	}
 
 	announcement_play("anno_project_sideload_complete");
+	lyrics_announce_load(lyrics_reload(filename_path(_file)));
 
 	// Check if other projects exist.
 	var _chartPath = filename_path(_file);
@@ -701,6 +704,7 @@ function project_load(_file = "") {
 	}
     
     announcement_play("anno_project_load_complete");
+	lyrics_announce_load(lyrics_reload());
 
 	analytics_track_event("ProjectLoad");
     
