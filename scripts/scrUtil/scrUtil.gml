@@ -1161,13 +1161,48 @@ function extern_quick_sort(array, type) {
 }
 
 function is_relative_path(path) {
-	return filename_name(path) == path;
+	if(path == "") return true;
+	// Drive root ("C:...") or UNC / rooted ("\\...", "/...").
+	if(string_length(path) >= 2 && string_char_at(path, 2) == ":")
+		return false;
+	var _c1 = string_char_at(path, 1);
+	if(_c1 == "\\" || _c1 == "/")
+		return false;
+	return true;
 }
 
 function get_absolute_path(dir, path) {
 	if(is_relative_path(path))
 		return dir + path;
 	return path;
+}
+
+/// @description Normalize a filesystem path for identity comparison.
+function path_normalize(p) {
+	p = string_replace_all(p, "/", "\\");
+	// Preserve a UNC prefix while collapsing mid-path "." and duplicate separators.
+	var _unc = string_copy(p, 1, 2) == "\\\\";
+	if(_unc) p = string_copy(p, 3, max(0, string_length(p) - 2));
+	while(string_pos("\\.\\", p) > 0)
+		p = string_replace_all(p, "\\.\\", "\\");
+	while(string_pos("\\\\", p) > 0)
+		p = string_replace_all(p, "\\\\", "\\");
+	return string_lower((_unc ? "\\\\" : "") + p);
+}
+
+/// @description True when both paths refer to the same file (after resolve).
+function paths_same_file(a, b) {
+	if(a == "" || b == "") return false;
+	return path_normalize(a) == path_normalize(b);
+}
+
+/// @description File size if readable, or -1 when the file cannot be opened.
+function file_try_size(file) {
+	var f = file_bin_open(file, 0);
+	if(f == -1) return -1;
+	var s = file_bin_size(f);
+	file_bin_close(f);
+	return s;
 }
 
 function file_get_size(file) {

@@ -826,36 +826,45 @@ function project_file_duplicate(_project, _propath) {
 	var _nbg = _new_file_path(_bg, _propath);
 	var _nvd = _new_file_path(_vd, _propath);
 	var _nmu = _new_file_path(_mu, _propath);
-	
+
 	var _process = function(_pro, _varname, _file, _nfile) {
 		if(_file == "") return;
 		if(is_relative_path(_file))
 			_file = filename_path(objManager.projectPath) + _file;
-		if(file_exists(_file)) {
-			if(!file_exists(_nfile))
-				file_copy(_file, _nfile);
-			else { // Compare file's binary size is more efficent.
-				var _f = file_bin_open(_file, 0);
-				var _nf = file_bin_open(_nfile, 0);
-				var _fs = file_bin_size(_f);
-				var _nfs = file_bin_size(_nf);
-				file_bin_close(_f);
-				file_bin_close(_nf);
-				if(_fs != _nfs) {
-					show_debug_message($"File sizes differ, creating a copy. {_file} -> {_nfile}");
-					_nfile = filename_path(_nfile)+filename_name_no_ext(_nfile)+"_"+random_id(4)+filename_ext(_nfile);
-					file_copy(_file, _nfile);
-				}
-			}
+		if(!file_exists(_file)) return;
+
+		// Already the project-local file (typical every-save case). Avoid
+		// file_copy / file_bin_open entirely: a locked video handle can make
+		// size probes fail and used to trigger a full media rewrite each save.
+		if(paths_same_file(_file, _nfile)) {
 			_nfile = filename_name(_nfile);
 			variable_struct_set(_pro, _varname, _nfile);
 			variable_instance_set(objManager, _varname, _nfile);
+			return;
 		}
+
+		if(!file_exists(_nfile)) {
+			file_copy(_file, _nfile);
+		} else {
+			// Dest already present. Only spawn a differently-named copy when
+			// both sizes are readable and actually differ. A failed open must
+			// not be treated as size 0: that rewrote large videos every save.
+			var _fs = file_try_size(_file);
+			var _nfs = file_try_size(_nfile);
+			if(_fs > 0 && _nfs >= 0 && _fs != _nfs) {
+				show_debug_message($"File sizes differ, creating a copy. {_file} -> {_nfile}");
+				_nfile = filename_path(_nfile)+filename_name_no_ext(_nfile)+"_"+random_id(4)+filename_ext(_nfile);
+				file_copy(_file, _nfile);
+			}
+		}
+		_nfile = filename_name(_nfile);
+		variable_struct_set(_pro, _varname, _nfile);
+		variable_instance_set(objManager, _varname, _nfile);
 	}
 	_process(_project, "backgroundPath", _bg, _nbg);
 	_process(_project, "videoPath", _vd, _nvd);
 	_process(_project, "musicPath", _mu, _nmu);
-	
+
 	return;
 }
 
@@ -987,9 +996,14 @@ function project_backup(project_path) {
 	// Also copy the current related files.
 	var _fn_copy = function(fr, bckDir) {
 		if(fr == "") return;
+		var src = fr;
+		if(is_relative_path(fr))
+			src = filename_path(objManager.projectPath) + fr;
 		var to = bckDir + filename_name(fr);
+		if(paths_same_file(src, to)) return;
 		if(file_exists(to)) return;
-		file_copy(fr, to);
+		if(!file_exists(src)) return;
+		file_copy(src, to);
 	}
 	_fn_copy(objManager.musicPath, bckDir);
 	_fn_copy(objManager.videoPath, bckDir);

@@ -606,14 +606,33 @@ function __test_timing_values() {
         throw "Timing value validation regression";
 }
 
+function __test_media_path_identity() {
+    if(!is_relative_path("video.mp4")
+        || !is_relative_path("videos/bg.mp4")
+        || !is_relative_path("")
+        || is_relative_path("C:\\charts\\video.mp4")
+        || is_relative_path("C:/charts/video.mp4")
+        || is_relative_path("\\\\server\\share\\video.mp4"))
+        throw "is_relative_path classification regression";
+
+    if(!paths_same_file("C:\\charts\\video.mp4", "c:/charts/Video.mp4")
+        || !paths_same_file("C:\\charts\\video.mp4", "C:\\charts\\.\\video.mp4")
+        || !paths_same_file("\\\\server\\share\\video.mp4", "\\\\server\\share\\video.mp4")
+        || paths_same_file("\\\\server\\share\\a.mp4", "C:\\charts\\a.mp4")
+        || paths_same_file("C:\\charts\\a.mp4", "C:\\charts\\b.mp4")
+        || paths_same_file("", "C:\\charts\\a.mp4"))
+        throw "paths_same_file identity regression";
+}
+
 function test_at_start() {
     show_debug_message("=====DEBUG======")
-    
+
     __test_misc();
     __test_expr();
     __test_lua();
     __test_project_save_event_identity();
     __test_timing_values();
+    __test_media_path_identity();
 
     var TEST_QUICK_SORT = false;
     var TEST_VERTEX_CONSTRUCTION = false;
