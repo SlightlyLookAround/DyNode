@@ -12,6 +12,12 @@ texturegroup_load("texFonts", true);
 // global.allowUnicodeMediaLoad = false 后再打开它，就会跳过背景/视频加载。
 global.allowUnicodeMediaLoad = true;
 
+// 控制台在 GMRT 下不一定好使，这里再提供一个最保险的开关：
+// 在 Runner.exe 所在目录放一个空的 unicode_media_off.txt，就会跳过非 ASCII 路径的媒体加载。
+if (file_exists("unicode_media_off.txt"))
+    global.allowUnicodeMediaLoad = false;
+
+
 typist = scribble_typist().in(1, 10);
 timer = 0;
 texWait = 0;

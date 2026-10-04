@@ -151,9 +151,18 @@ Unhandled exception: Error: Failed to load script
     * `project_backup()`：工程目录含非 ASCII 字符时**跳过备份**（工程保存本身走 DyCore，不受影响），
       这样既不会再产生乱码目录，也避免自动备份把游戏打崩；
     * `image_load()` / `video_load()`：非 ASCII 路径默认仍照常尝试（部分中文目录能正常读），
-      但新增开关 —— 若某个工程一打开就闪退，在控制台执行
-      `global.allowUnicodeMediaLoad = false` 后再打开它，就会跳过背景图/视频加载；
+      但新增开关 —— 若某个工程一打开就闪退，用下面任意一种方式关掉后再打开它，
+      就会跳过背景图/视频加载：
+        * IDE 控制台里**粘贴**（控制台只认已注册命令，必须带 `expr` 前缀；
+          且 `expr` 只能在 IDE 里用）：
+          `expr global.allowUnicodeMediaLoad = false`
+        * 在 `Runner.exe`（或打包后的 exe）旁边放一个空的 `unicode_media_off.txt`，
+          任何构建都有效；
     * 建议：这类工程暂时放在**纯英文路径**下最稳；GMRT 修好文件 API 的编码问题后即可还原。
+
+    附注：GMRT 下控制台**打字**输入是坏的（每个字符都变成 `?`，日志里还是
+    `Couldn't find glyph data for character code 2093056 (骺€€)` 之类的乱码码点），
+    这是 GMRT 的键盘输入问题，不是项目代码；**粘贴**是正常的，所以用粘贴来执行命令。
 
 上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
 

@@ -411,9 +411,11 @@ function background_reset() {
 
 function video_load(_file) {
 	// [GMRT-WA-15767] 非 ASCII 路径下 GMRT 的文件 API 可能直接崩（见 path_has_non_ascii 注释）。
-	// 默认仍然尝试加载；如果某个工程一打开就闪退，可以在控制台执行
-	//   global.allowUnicodeMediaLoad = false
-	// 之后再打开它，就会跳过背景图/视频加载。
+	// 默认仍然尝试加载；某个工程一打开就闪退时可以关掉开关：
+	//   * 在 IDE 控制台粘贴（注意控制台只认已注册的命令，所以要有 expr 前缀）：
+	//         expr global.allowUnicodeMediaLoad = false
+	//   * 或者直接在 Runner.exe 旁边放一个空的 unicode_media_off.txt（任何构建都有效）
+	// 之后重新打开该工程，就会跳过背景图/视频加载。
 	if(path_has_non_ascii(_file) && !global.allowUnicodeMediaLoad) {
 		show_debug_message("[GMRT-WA-15767] Skip video load for non-ASCII path: " + _file);
 		return;
@@ -436,6 +438,7 @@ function video_load(_file) {
 
 function image_load(_file) {
 	// [GMRT-WA-15767] 同上：非 ASCII 路径 + global.allowUnicodeMediaLoad == false 时跳过。
+	// 关闭方式见 image_load() 里的说明。
 	if(path_has_non_ascii(_file) && !global.allowUnicodeMediaLoad) {
 		show_debug_message("[GMRT-WA-15767] Skip image load for non-ASCII path: " + _file);
 		return;
