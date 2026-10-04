@@ -82,6 +82,14 @@ Unhandled exception: Error: Failed to load script
    的 varying 打包进 15 个 vec4（`v_packed0..14` + `#define` 保持原变量名不变），
    数据本身不变，GMS2/YYC 同样适用。此后校验错误为 0，Clean 绘制的面板/线条恢复正常。
 
+7. **把 `undefined` 传给扩展的 REAL 参数会直接崩溃**（`REAL argument is undefined`）
+   点「打开项目」进主界面时，`objMain` 的 `_create_channel()` 第一次执行，`channel` 仍是
+   `undefined`，`FMODGMS_Chan_RemoveChannel(undefined)` 在 YYC 下被宽松地当成 0，
+   GMRT 则直接抛 `REAL argument is undefined`。现在这两处 FMOD 调用
+   （`_create_channel()`、`volume_set_main()`）都先用 `is_undefined()` 判断。
+   项目里同类模式（如 `music`）本来就带判断，只有这两处漏了。
+   遇到其它同类报错时，按同样方式在调用前加判断即可。
+
 上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
 
 * `split_msdf_atlas.py` —— 把 MSDF 图集重新打包成 ≤2044 的帧并改写

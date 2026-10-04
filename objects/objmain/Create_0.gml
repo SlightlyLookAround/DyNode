@@ -475,11 +475,16 @@ function volume_get_main() {
 
 function volume_set_main(_vol) {
 	volumeMain = _vol;
-    FMODGMS_Chan_Set_Volume(channel, _vol);
+	// [GMRT-WA-15767] 同上：通道还没建好时 channel 仍是 undefined
+	if (!is_undefined(channel))
+	    FMODGMS_Chan_Set_Volume(channel, _vol);
 }
 
 function _create_channel() {
-	FMODGMS_Chan_RemoveChannel(channel);
+	// [GMRT-WA-15767] GMRT 把 undefined 传给扩展的 REAL 参数会直接抛
+	// "REAL argument is undefined"（YYC 会宽松地当 0），首次创建通道时 channel 还是 undefined。
+	if (!is_undefined(channel))
+		FMODGMS_Chan_RemoveChannel(channel);
 	channel = FMODGMS_Chan_CreateChannel();
 }
 
