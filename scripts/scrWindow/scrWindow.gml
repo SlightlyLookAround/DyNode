@@ -1,4 +1,11 @@
 
+// [GMRT-WA-15767] 是否允许在运行时调用 display_reset() 修改 MSAA / vsync。
+// GMRT 0.22 下在运行时改 display AA level 会触发 Dawn 校验错误
+// （YoYo #15328：Changing Display AA Level at Runtime Causes Validation Errors and Rendering Issues），
+// 所以 GMRT 期间保持 false；以后用 GMS2/YYC 构建、或 GMRT 修好这个问题后改回 true 即可。
+// 说明与还原步骤见 notes/GMRT-15767-workaround.md。
+#macro APPLY_RUNTIME_DISPLAY_RESET false
+
 function window_on_files_dropped(fileList) {
     var files;
     if(is_string(fileList)) {

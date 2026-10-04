@@ -1,11 +1,16 @@
 
-display_reset(4, true);
+// [GMRT-WA-15767] GMRT 下运行时改 AA level 会触发 Dawn 校验错误（YoYo #15328），
+// 由 APPLY_RUNTIME_DISPLAY_RESET 统一控制，见 notes/GMRT-15767-workaround.md。
+if (APPLY_RUNTIME_DISPLAY_RESET)
+    display_reset(4, true);
 
 // Prefetch the large dynamic font texture group into vram.
 texturegroup_load("texFonts", true);
 
+
 typist = scribble_typist().in(1, 10);
 timer = 0;
+texWait = 0;
 
 logoAlpha = 0;
 logoFadeInTime = 0.4;   // in seconds

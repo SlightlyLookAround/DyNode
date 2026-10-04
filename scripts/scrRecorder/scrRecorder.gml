@@ -69,7 +69,9 @@ function RecordManager() constructor {
         originalFPS = game_get_speed(gamespeed_fps);
         game_set_speed(RECORDING_FPS_MAX, gamespeed_fps);
         resolution_set(RECORDING_RESOLUTION_W, RECORDING_RESOLUTION_H, false);
-        display_reset(max(global.graphics.VSync, 2), false);
+        // [GMRT-WA-15767] GMRT 下运行时改 AA level 会触发 Dawn 校验错误（YoYo #15328）
+        if (APPLY_RUNTIME_DISPLAY_RESET)
+            display_reset(max(global.graphics.VSync, 2), false);
         dyc_video_set_sync_mode(true);
         targetFilePath = filename;
         
@@ -173,7 +175,9 @@ function RecordManager() constructor {
         frameBuffer = -1;
         global.timeManager.set_mode_default();
         game_set_speed(originalFPS, gamespeed_fps);
-        display_reset(global.graphics.AA, global.graphics.VSync);
+        // [GMRT-WA-15767] GMRT 下运行时改 AA level 会触发 Dawn 校验错误（YoYo #15328）
+        if (APPLY_RUNTIME_DISPLAY_RESET)
+            display_reset(global.graphics.AA, global.graphics.VSync);
         dyc_video_set_sync_mode(false);
 
         global.__InputManager.unfreeze();

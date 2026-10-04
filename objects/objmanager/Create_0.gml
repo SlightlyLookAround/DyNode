@@ -118,7 +118,9 @@ display_set_gui_size(BASE_RES_W, BASE_RES_H);
 
 // Graphics settings init
 gpu_set_tex_filter(true);
-display_reset(global.graphics.AA, global.graphics.VSync);
+// [GMRT-WA-15767] GMRT 下运行时改 AA level 会触发 Dawn 校验错误（YoYo #15328）
+if (APPLY_RUNTIME_DISPLAY_RESET)
+    display_reset(global.graphics.AA, global.graphics.VSync);
 
 // FMODGMS Initialization
 
