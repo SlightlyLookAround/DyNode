@@ -75,6 +75,35 @@ function __scribble_font_add_msdf_from_project(_sprite)
     
     var _em_size      = _atlas_map[? "size"         ];
     var _msdf_pxrange = _atlas_map[? "distanceRange"];
+
+    // [GMRT-WA-15767] 图集现在按“每帧 <= 2044px”拆开存放（见 notes/GMRT-15767-workaround.md），
+    // 这样 GMRT 打包贴图页时不会重采样 MSDF 数据。这里逐帧缓存（已做缩放修正的）UV 与纹理，
+    // 下面每个字形再按自己在图集里的行号选帧。
+    var _atlas_width  = _atlas_map[? "width" ];
+    var _atlas_height = _atlas_map[? "height"];
+    var _frame_count  = sprite_get_number(_sprite);
+    var _frame_uvs    = array_create(_frame_count);
+    var _frame_tex    = array_create(_frame_count);
+    for (var _f = 0; _f < _frame_count; _f++)
+    {
+        var _frame_uv  = sprite_get_uvs(_sprite, _f);
+        var _frame_tx  = sprite_get_texture(_sprite, _f);
+        var _frame_tw  = texture_get_texel_width(_frame_tx);
+        var _frame_th  = texture_get_texel_height(_frame_tx);
+        _frame_uv[0] -= _frame_tw*_frame_uv[4];
+        _frame_uv[1] -= _frame_th*_frame_uv[5];
+        _frame_uv[2] += _frame_tw*_sprite_width *(1 - _frame_uv[6]);
+        _frame_uv[3] += _frame_th*_sprite_height*(1 - _frame_uv[7]);
+        if ((_frame_uv[2] > 1 || _frame_uv[3] > 1) && _frame_uv[6] > 0 && _frame_uv[7] > 0)
+        {
+            _frame_uv[0] *= _frame_uv[6];
+            _frame_uv[1] *= _frame_uv[7];
+            _frame_uv[2] *= _frame_uv[6];
+            _frame_uv[3] *= _frame_uv[7];
+        }
+        _frame_uvs[_f] = _frame_uv;
+        _frame_tex[_f] = _frame_tx;
+    }
     
     var _json_line_height = _em_size*_metrics_map[? "lineHeight"];
     
@@ -102,12 +131,20 @@ function __scribble_font_add_msdf_from_project(_sprite)
         
         if (__SCRIBBLE_DEBUG) __scribble_trace("     Adding data for character \"" + string(_char) + "\" (" + string(_unicode) + ")");
         
+        var _glyph_frame = 0;
         if (_atlas_map != undefined)
         {
+            // [GMRT-WA-15767] 先在整张虚拟图集的坐标里定位，再折算到字形所在帧的局部坐标
+            var _global_t  = _atlas_height - _atlas_map[? "top"   ]; //This atlas format is weird
+            var _global_b  = _atlas_height - _atlas_map[? "bottom"];
+            _glyph_frame   = floor(_global_t/_sprite_height);
+            if (_glyph_frame < 0) _glyph_frame = 0;
+            if (_glyph_frame >= _frame_count) _glyph_frame = _frame_count - 1;
+            var _frame_off = _glyph_frame*_sprite_height;
             var _tex_l = _atlas_map[? "left"] + 1;
-            var _tex_t = _sprite_height - _atlas_map[? "top"] + 1; //This atlas format is weird
+            var _tex_t = _global_t + 1 - _frame_off;
             var _tex_r = _atlas_map[? "right"] - 1;
-            var _tex_b = _sprite_height - _atlas_map[? "bottom"] - 1;
+            var _tex_b = _global_b - 1 - _frame_off;
         }
         else
         {
@@ -159,10 +196,11 @@ function __scribble_font_add_msdf_from_project(_sprite)
             }
         }
         
-        var _u0 = lerp(_sprite_uvs[0], _sprite_uvs[2], _tex_l/_sprite_width );
-        var _v0 = lerp(_sprite_uvs[1], _sprite_uvs[3], _tex_t/_sprite_height);
-        var _u1 = lerp(_sprite_uvs[0], _sprite_uvs[2], _tex_r/_sprite_width );
-        var _v1 = lerp(_sprite_uvs[1], _sprite_uvs[3], _tex_b/_sprite_height);
+        var _glyph_uv = _frame_uvs[_glyph_frame];
+        var _u0 = lerp(_glyph_uv[0], _glyph_uv[2], _tex_l/_sprite_width );
+        var _v0 = lerp(_glyph_uv[1], _glyph_uv[3], _tex_t/_sprite_height);
+        var _u1 = lerp(_glyph_uv[0], _glyph_uv[2], _tex_r/_sprite_width );
+        var _v1 = lerp(_glyph_uv[1], _glyph_uv[3], _tex_b/_sprite_height);
         
         if ((_unicode >= 0x3000) && (_unicode <= 0x303F)) //CJK Symbols and Punctuation
         {
@@ -217,7 +255,7 @@ function __scribble_font_add_msdf_from_project(_sprite)
         _font_glyph_data_grid[# _i, SCRIBBLE_GLYPH.LEFT_OFFSET          ] = 1 - _xoffset - 0.5*_msdf_pxrange;
         _font_glyph_data_grid[# _i, SCRIBBLE_GLYPH.FONT_SCALE           ] = 1;
         
-        _font_glyph_data_grid[# _i, SCRIBBLE_GLYPH.TEXTURE              ] = _texture;
+        _font_glyph_data_grid[# _i, SCRIBBLE_GLYPH.TEXTURE              ] = _frame_tex[_glyph_frame];
         _font_glyph_data_grid[# _i, SCRIBBLE_GLYPH.U0                   ] = _u0;
         _font_glyph_data_grid[# _i, SCRIBBLE_GLYPH.V0                   ] = _v0;
         _font_glyph_data_grid[# _i, SCRIBBLE_GLYPH.U1                   ] = _u1;

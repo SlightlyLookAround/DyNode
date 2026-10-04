@@ -57,20 +57,30 @@ Unhandled exception: Error: Failed to load script
    objPreInit / objManager / scrRecorder 里 4 处 display_reset 都由它控制；
    GMRT 期间不启用 MSAA / vsync，校验错误归零。
 
-### 仍未彻底解决：GMRT 会把超过 2048 的贴图页缩小打包
+### 第四批：MSDF 图集拆帧 + Clean Shapes 顶点输出打包
 
-GMRT 0.22 的资源编译器固定按 2048 上限打包贴图页，而本项目的 Windows 贴图页设置是
-8192x8192（最后一次 YYC 构建产物 `texfonts_0.yytex` 头里确实是 8192x8192）。于是
-4096x8192 的 MSDF 图集（sprMsdfNotoSans）被缩成 1024x2048 —— MSDF 的 RGB 距离场一旦被
-重采样就会损坏，字形碎成一片。
+5. **GMRT 会把超过 2048 的贴图页缩小打包，MSDF 字形因此碎成一片**
+   GMRT 0.22 的资源编译器固定按 2048 上限打包贴图页，而本项目的 Windows 贴图页设置是
+   8192x8192（最后一次 YYC 构建产物 `texfonts_0.yytex` 头里确实是 8192x8192），于是
+   4096x8192 的 MSDF 图集被缩成 1024x2048。MSDF 的 RGB 距离场一旦被重采样就会损坏，
+   字形显示为碎片。现在的做法：
+   * 用脚本把 11746 个字形格子**逐像素**重新打包成 7 张 2044x2044 的帧
+     （`sprMsdfNotoSans` 由 1 帧变 7 帧，图集 JSON 的坐标同步改写为
+     2044 x 14308 的虚拟图集；2044 = 2048 页 − 组边框 2px×2），GMRT 因此 1:1 打包、
+     不再重采样，字形保真；
+   * `scripts/__scribble_font_add_msdf_from_project` 里按“字形所在帧”取
+     `sprite_get_uvs` / `sprite_get_texture`（带 `[GMRT-WA-15767]` 标记），
+     并保留把 GMRT 缩放页 UV 换算回真实范围的兜底逻辑。
+   实测 `texFonts.output.json`：7 页 2048x2048，每个条目 `cropWidth == w`（无缩放），
+   界面中文字形清晰。
 
-已做的缓解：Scribble 的 MSDF 载入器（`scripts/__scribble_font_add_msdf_from_project`）里加了一段
-（同样带 `[GMRT-WA-15767]`）把 GMRT 返回的 UV 按打包缩放系数换算回真实贴图范围，
-否则 UV 会偏大 4 倍（YYC 下 UV 正常，这段不生效）。
-
-图集被重采样本身脚本层修不了。彻底的本地做法（尚未实施）是把图集拆成 ≤2048 的若干块
-（例如 8 张 2048x2048 帧），让 GMRT 1:1 打包，再让 Scribble 按字形所在块取对应帧；
-或者等 YoYo 修 GMRT 的贴图页上限。
+6. **Clean Shapes 的着色器在 WebGPU 下无法创建 pipeline（黑屏）**
+   Clean 的 3 个绘制着色器各声明约 31 个 varying（≈58 个分量），对应 30 个顶点输出，
+   超过 WebGPU 的 16 个上限，Dawn 创建 pipeline 失败 → 整帧提交失效 → 窗口全黑 +
+   每帧校验报错刷屏。现已把
+   `shaders/__shdcleanantialias`、`__shdCleanAntialiasLegacy`、`__shdcleanjaggies`
+   的 varying 打包进 15 个 vec4（`v_packed0..14` + `#define` 保持原变量名不变），
+   数据本身不变，GMS2/YYC 同样适用。此后校验错误为 0，Clean 绘制的面板/线条恢复正常。
 
 ### 附带的第二个坑：GMRT 没有实现 SVG 抗锯齿函数
 
@@ -226,6 +236,12 @@ eventFunc = function() {
      并把 objPreInit / objManager / scrRecorder 里 4 处 `display_reset` 的 `if` 包壳去掉。
    * 把 `DyNode.yyp` 里 texFonts 组的 `"loadType"` 从 `"default"` 改回 `"dynamicpages"`。
    * 删掉 `scripts/__scribble_font_add_msdf_from_project/` 里带 `[GMRT-WA-15767]` 的 UV 换算代码。
+   * 图集拆帧：把 `sprites/sprmsdfnotosans/` 与 `datafiles/sprMsdfNotoSans.json` 还原成
+     拆分前的单帧 4096x8192 版本，并去掉 Scribble 载入器里带 `[GMRT-WA-15767]` 的
+     “按帧取 UV/纹理”代码（`git revert` 会自动完成这些）。
+   * Clean 着色器：把 `shaders/__shdcleanantialias`、`__shdCleanAntialiasLegacy`、
+     `__shdcleanjaggies` 的 `v_packed*` 打包块换回原来的 `varying` 声明列表
+     （数据含义不变，只是写法）。
 
 ## 验证记录（2026-10-04）
 
@@ -236,8 +252,11 @@ eventFunc = function() {
 * 第三批改动后 `ReferenceError` / `is not defined` / `GetCurrentTexture` 均为 0；
   只有 `Failed to load Vulkan` 回退（GMRT 用 D3D12 后端）和
   `Grid index out of bounds` 这类提示；
-* 字体：texFonts 组能加载、UV 已按打包缩放换算正确，但图集被 GMRT 缩小 4 倍重采样过，
-  MSDF 字形仍然破碎（见上一节）。YYC 构建不受影响。
+* 第四批改动后：`VALIDATION ERROR`、`infringes limits` 均为 0；
+  `texFonts` 打成 7 张 2048x2048 页且每项 `cropWidth == w`（无缩放）；
+  实际运行截图确认「开始页面 / 新建项目」等中文字形清晰、背景三角形正常；
+* 仍然存在但不影响运行的提示：`Failed to load Vulkan`（GMRT 回退 D3D12）、
+  `Warning: no handler found for chunk with ID: STRG`、`Grid index out of bounds`。
 
 > 注意：如果 GameMaker IDE 一直开着这个工程，改动磁盘上的 .yy/.gml 后需要在 IDE 里
 > 重新加载工程（或关掉重开）再编译，否则 IDE 可能用旧的内存状态覆盖这些文件。
