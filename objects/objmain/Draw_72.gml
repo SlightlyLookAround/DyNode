@@ -11,7 +11,15 @@ var _nw = BASE_RES_W, _nh = BASE_RES_H;
         var _scl = max(_nw / _sw, _nh / _sh); // Centre & keep ratios
         var _sx = (_nw - _sw * _scl) / 2, _sy = (_nh - _sh * _scl) / 2;
 
-        draw_sprite_ext(_spr, 0, _sx, _sy, _scl, _scl, 0, c_white, 1);
+        // [GMRT-WA-15767] GMRT 不会绘制起点在负坐标的精灵：背景居中后 _sx/_sy 通常为负
+        // （例如 1500x1500 的图在 1920x1080 下 _sy = -420），整张背景就都看不见了。
+        // 这里把屏幕外的部分裁掉，只画落在屏幕内的区域；YYC 下裁剪结果与原来完全一致。
+        var _dx = max(_sx, 0), _dy = max(_sy, 0);
+        var _srx = (_dx - _sx) / _scl, _sry = (_dy - _sy) / _scl;
+        var _srw = (min(_sx + _sw * _scl, _nw) - _dx) / _scl;
+        var _srh = (min(_sy + _sh * _scl, _nh) - _dy) / _scl;
+        if(_srw > 0 && _srh > 0)
+            draw_sprite_part_ext(_spr, 0, _srx, _sry, _srw, _srh, _dx, _dy, _scl, _scl, c_white, 1);
     }
     else {
         draw_clear(c_white);
@@ -39,6 +47,7 @@ var _nw = BASE_RES_W, _nh = BASE_RES_H;
 	    draw_set_alpha(bgDim);
 	    draw_rectangle(0, 0, _nw, _nh, false);
 	    draw_set_alpha(1.0);
+
         
         draw_set_color(c_black);
         draw_set_alpha(bottomDim);
