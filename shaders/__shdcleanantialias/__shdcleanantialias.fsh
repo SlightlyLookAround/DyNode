@@ -3,50 +3,69 @@ precision highp float;
 #define SMOOTHNESS 1.0
 
 //Shared
-varying vec2  v_vPosition;
-varying float v_fMode;
-varying vec4  v_vFillColour;
-varying float v_fBorderThickness;
-varying vec4  v_vBorderColour;
-varying float v_fRounding;
-varying float v_fBorder;
+varying vec4 v_packed0;
+varying vec4 v_packed1;
+varying vec4 v_packed2;
+varying vec4 v_packed3;
+varying vec4 v_packed4;
+varying vec4 v_packed5;
+varying vec4 v_packed6;
+varying vec4 v_packed7;
+varying vec4 v_packed8;
+varying vec4 v_packed9;
+varying vec4 v_packed10;
+varying vec4 v_packed11;
+varying vec4 v_packed12;
+varying vec4 v_packed13;
+varying vec4 v_packed14;
+// [GMRT-WA-15767] 上面这些数据被打包进少量 vec4：WebGPU 的顶点输出上限是 16 个，
+// 原来的 ~30 个 varying 会让 Clean 的 pipeline 创建失败（黑屏 + 每帧校验报错）。
+// 数据本身没变，只是换了存放方式；GMS2/YYC 同样适用。
+#define v_vFillColour v_packed0
+#define v_vBorderColour v_packed1
+#define v_vCircleInnerColour v_packed2
+#define v_vLine1 v_packed3.xyz
+#define v_vLine2 v_packed4.xyz
+#define v_vNgonXYR v_packed5.xyz
+#define v_vSegmentXYR v_packed6.xyz
+#define v_vPosition v_packed7.xy
+#define v_vCircleRadius v_packed7.zw
+#define v_vCircleCoord v_packed8.xy
+#define v_vRectangleXY v_packed8.zw
+#define v_vRectangleWH v_packed9.xy
+#define v_vLineA v_packed9.zw
+#define v_vLineB v_packed10.xy
+#define v_vLineC v_packed10.zw
+#define v_vRingCentre v_packed11.xy
+#define v_vOutputTexel v_packed11.zw
+#define v_fMode v_packed3.w
+#define v_fBorderThickness v_packed4.w
+#define v_fRounding v_packed5.w
+#define v_fLineThickness v_packed6.w
+#define v_fNgonSides v_packed12.x
+#define v_fNgonStarFactor v_packed12.y
+#define v_fNgonAngle v_packed12.z
+#define v_vSegmentApertureCentre v_packed12.w
+#define v_vSegmentApertureSize v_packed13.x
+#define v_fRingApertureCentre v_packed13.y
+#define v_fRingApertureSize v_packed13.z
+#define v_fRingInnerRadius v_packed13.w
+#define v_fRingOuterRadius v_packed14.x
+#define v_fBorder v_packed14.y
 
 //Circle
-varying vec2 v_vCircleRadius;
-varying vec2 v_vCircleCoord;
-varying vec4 v_vCircleInnerColour;
 
 //Rectangle
-varying vec2 v_vRectangleXY;
-varying vec2 v_vRectangleWH;
 
 //Line + Polyline
-varying vec2  v_vLineA;
-varying vec2  v_vLineB;
-varying vec2  v_vLineC;
-varying float v_fLineThickness;
 
 //Convex
-varying vec3 v_vLine1;
-varying vec3 v_vLine2;
 
 //N-gon
-varying vec3  v_vNgonXYR;
-varying float v_fNgonSides;
-varying float v_fNgonStarFactor;
-varying float v_fNgonAngle;
 
 //Segment
-varying vec3  v_vSegmentXYR;
-varying float v_vSegmentApertureCentre;
-varying float v_vSegmentApertureSize;
 
 //Ring
-varying vec2  v_vRingCentre;
-varying float v_fRingApertureCentre;
-varying float v_fRingApertureSize;
-varying float v_fRingInnerRadius;
-varying float v_fRingOuterRadius;
 
 
 
