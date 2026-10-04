@@ -657,7 +657,10 @@ function lyrics_draw() {
 
 	var _alpha = 1.0;
 	// Soften slightly while the top-bar panel is open so UI stays readable.
-	if(instance_exists(objTopBar) && objTopBar.active)
+	// The panel lives on the GUI layer and is never captured by the built-in
+	// recorder (frames come from application_surface), so dimming during a
+	// take would only bake a dark veil over the recorded lyrics.
+	if(instance_exists(objTopBar) && objTopBar.active && !global.recordManager.is_recording())
 		_alpha = 0.35;
 
 	var _primary = is_string(_cue.primary) ? _cue.primary : "";

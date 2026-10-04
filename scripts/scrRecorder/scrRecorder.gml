@@ -113,6 +113,13 @@ function RecordManager() constructor {
         show_debug_message("-- Music path: " + musicPath);
 
         global.__InputManager.freeze();
+
+        // Recording is always armed from the Tab panel and input stays frozen
+        // until it ends, so the panel can no longer be dismissed by hand.
+        // Request a deferred close: otherwise it keeps sitting on top of the
+        // playview (and dimming the lyrics) for the whole take.
+        if(instance_exists(objTopBar))
+            objTopBar.panelCloseRequest = true;
     }
 
     static push_frame = function() {
