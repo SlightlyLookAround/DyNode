@@ -959,9 +959,12 @@ function dyc_ffmpeg_start_recording(filename, musicPath, width, height, fps, mui
         {
             filename: filename,
             musicPath: musicPath,
-            width: int64(width),
-            height: int64(height),
-            fps: int64(fps),
+            // [GMRT-WA-15767] 这里不要用 int64()：GMRT 的 json_stringify 会把 int64 编码成
+            // "@i64@780$i64$" 形式的字符串，DyCore 侧用 nlohmann 解析时会抛
+            // "type must be number, but is string"（YYC 下 int64 会写成 JSON 数字，所以以前没问题）。
+            width: width,
+            height: height,
+            fps: fps,
             musicOffset: muiscOffset
         }
     ));

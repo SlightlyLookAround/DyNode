@@ -100,6 +100,23 @@ Unhandled exception: Error: Failed to load script
    注意：`video_load()`（DyCore/FFmpeg 那条路）还没有加同样的处理，遇到带中文路径的
    视频可能同样打不开，按需照抄即可。
 
+9. **GMRT 不绘制起点在负坐标的精灵**（背景图"加载成功但完全看不见"）
+   背景是居中绘制的：1500x1500 的图在 1920x1080 下 `_sy = (1080 - 1500*1.28)/2 = -420`，
+   GMRT 会整张跳过；YYC 正常。对照实验：同一张图同样缩放画在 (200,300) 能显示，
+   画在 (960,-420) 就完全不显示。现在 [objMain/Draw_72.gml] 改为把屏幕外的部分裁掉、
+   用 `draw_sprite_part_ext()` 只画屏幕内区域（YYC 下裁剪结果与原来一致）。
+   注意：其它"起点为负"的绘制在 GMRT 下同样会消失，例如开启 `bgBlured` 后的
+   `draw_surface(application_surface, 0, targetLineBelow - _nh)`，遇到时按同样方法裁剪。
+
+10. **录像 / 带 BGA 视频的项目一点就闪退**
+   日志里的异常是 `[json.exception.type_error.302] type must be number, but is string`，
+   发生在录制开始（`-- Recording audio offset ...` 之后）。原因：GMRT 的 `json_stringify()`
+   会把 `int64` 值编码成 `"@i64@780$i64$"` 这样的字符串（YYC 写成 JSON 数字），
+   而 DyCore 的 `DyCore_ffmpeg_start_recording()` 用 nlohmann 解析并期望数字，于是抛异常。
+   现在 `dyc_ffmpeg_start_recording()` 里不再对 width/height/fps 用 `int64()`，直接传普通数值；
+   实测 start/finish 都返回 0，不再抛异常。项目里其它用 `int64()` 生成 JSON 的地方
+   （例如 Snitch 的 analytics 负载）在 GMRT 下也会被编成这种标记字符串，需要时同样处理。
+
 上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
 
 * `split_msdf_atlas.py` —— 把 MSDF 图集重新打包成 ≤2044 的帧并改写
