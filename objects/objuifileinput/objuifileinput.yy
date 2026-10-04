@@ -38,6 +38,7 @@
         "\"Save\"",
         "\"Open\"",
       ],"multiselect":false,"name":"fType","rangeEnabled":false,"rangeMax":10.0,"rangeMin":0.0,"resourceType":"GMObjectProperty","resourceVersion":"2.0","value":"\"Open\"","varType":6,},
+    {"$GMObjectProperty":"v2","%Name":"xRatio","filters":[],"listItems":[],"multiselect":false,"name":"xRatio","rangeEnabled":false,"rangeMax":10.0,"rangeMin":0.0,"resourceType":"GMObjectProperty","resourceVersion":"2.0","value":"-1","varType":0,},
   ],
   "resourceType":"GMObject",
   "resourceVersion":"2.0",

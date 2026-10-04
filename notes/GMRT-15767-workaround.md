@@ -1,0 +1,211 @@
+# GMRT #15767 变通：把「实例创建代码」移到对象事件
+
+> 变更分支：`codex/gmrt-15767-workaround`
+> 代码标记：`[GMRT-WA-15767]`（用 `git grep -n GMRT-WA-15767` 可以找到所有改动点）
+
+## 背景
+
+GMRT 0.22.x（含 LTS2026 自带的 GMRT 0.22.4）有一个已知 bug：**项目里只要有「实例创建代码」
+（房间编辑器里给单个实例写的 Creation Code），运行时加载 WAD 就会崩溃**，日志形如：
+
+```
+Loading WAD: D:\DYNSource\Build\build\assets\DyNode.Default.wad
+Unhandled exception: Error: Failed to load script
+  DyNode__rooms_x2F_rCredits_x2F_InstanceCreationCode_inst_1F0E7606 from wad
+```
+
+官方 bug 跟踪：[YoYoGames/GameMaker-Bugs#15767](https://github.com/YoYoGames/GameMaker-Bugs/issues/15767)
+（当前状态 open，里程碑 GMRT 0.23.0；报告者在 0.22.37 上同样复现）。
+
+原因是 GMRT 的 GML 编译器不会给 `rooms/<房间>/InstanceCreationCode_inst_*.gml` 生成 IR
+（`Build/build/out` 里这些脚本没有 `.gmir`），但房间数据里仍然引用了这些脚本，
+运行时按名字去 WAD 里加载就失败了。GMS2 YYC 走的是另一条编译路径，所以之前用 YYC 一直正常。
+
+## 本次改动
+
+把 11 处实例创建代码搬到对象事件里，实例之间的差异改用**变量定义**
+（也就是房间编辑器里的 Overridden Properties）传递。新增的对象变量定义：
+
+另外还绕开了 GMRT 的第二个坑（见后面「附带的第二个坑」一节）：objPreInit 里
+矢量图（SVG）抗锯齿的调用被开关关掉了。
+
+| 对象 | 变量 | 默认值 | 含义 |
+| --- | --- | --- | --- |
+| objTextBox / objUIButton / objUIFileInput | `xRatio` | `-1` | 按屏幕比例重定位 x（`resor_to_x`）；`-1` = 保持房间编辑器里的位置 |
+| objUIButton | `eventAction` | `""` | 按钮点击行为；`""` = 沿用对象里原有的默认回调（announcement） |
+
+`xRatio`、`eventAction` 的读取与分发写在对应对象的 Create 事件末尾
+（objCredits 继承 objTextBox，所以它的 Create 里 `event_inherited()` 就会执行到这段逻辑）。
+
+### 附带的第二个坑：GMRT 没有实现 SVG 抗锯齿函数
+
+修完上面这个问题后，GMRT 能加载 WAD 了，但启动时又报：
+
+```
+Unhandled exception: ReferenceError: draw_get_svg_aa_level is not defined
+```
+
+`objects/objPreInit/Create_0.gml` 里原本会在启动时调用
+`draw_get_svg_aa_level()` / `draw_enable_svg_aa()` / `draw_set_svg_aa_level()`，
+这三个是 GMS2 的矢量图（SVG）抗锯齿开关，GMRT 0.22.x 还没有实现。
+
+现在这三行被 `var _gmrtSvgAA = false;` 开关包住（代码标记同样是 `[GMRT-WA-15767]`）：
+
+* GMRT 下保持 `false`：跳过调用，矢量图不启用抗锯齿（不崩）；
+* 以后用 GMS2/YYC 构建并想恢复抗锯齿，把 `_gmrtSvgAA` 改成 `true` 即可；
+* GMRT 实现这三个函数后，删掉开关、恢复成原来的 `if (draw_get_svg_aa_level() == 0)` 即可。
+
+实例映射（原文件已删除，内容见下表）：
+
+| 房间 | 实例 | 对象 | 原创建代码 | 现在 |
+| --- | --- | --- | --- | --- |
+| rCredits | inst_1F0E7606 | objCredits | `x = resor_to_x(0.05);` | `xRatio = 0.05` |
+| rCredits | inst_4FE3C2BD | objUIButton | `x = resor_to_x(0.05);` + 返回起始页的回调 | `xRatio = 0.05`，`eventAction = "go_back"` |
+| rProjectInit | inst_57925B3C | objUIFileInput | `x = resor_to_x(0.05)` | `xRatio = 0.05` |
+| rProjectInit | inst_4D3CE07A | objUIFileInput | `x = resor_to_x(0.05)` | `xRatio = 0.05` |
+| rProjectInit | inst_1D9D7800 | objUIFileInput | `x = resor_to_x(0.05)` | `xRatio = 0.05` |
+| rProjectInit | inst_71FB034A | objUIButton | `x = resor_to_x(0.05)` + 校验输入并 `room_goto(rMain)` | `xRatio = 0.05`，`eventAction = "project_create"` |
+| rProjectInit | inst_9C053CC | objUIButton | 返回起始页的回调（无 x） | `eventAction = "go_back"` |
+| rStartPage | inst_71FB034A_1 | objUIButton | `x = resor_to_x(0.05)` + `room_goto(rProjectInit)` | `xRatio = 0.05`，`eventAction = "project_new"` |
+| rStartPage | inst_6C7B47DC | objUIButton | `x = resor_to_x(0.05)` + `initWithProject = true; room_goto(rMain)` | `xRatio = 0.05`，`eventAction = "project_open"` |
+| rStartPage | inst_3FCB4889 | objTextBox | `x = resor_to_x(0.05)` | `xRatio = 0.05` |
+| rStartPage | inst_6FCDFC63 | objUIButton | `x = resor_to_x(0.05)` + `room_goto(rCredits)` | `xRatio = 0.05`，`eventAction = "about"` |
+
+### 各实例原始创建代码（删除前的完整内容）
+
+`rooms/rCredits/InstanceCreationCode_inst_1F0E7606.gml`
+```gml
+x = resor_to_x(0.05);
+```
+
+`rooms/rCredits/InstanceCreationCode_inst_4FE3C2BD.gml`
+```gml
+x = resor_to_x(0.05);
+
+eventFunc = function() {
+	room_goto(rStartPage);
+}
+```
+
+`rooms/rprojectinit/InstanceCreationCode_inst_57925B3C.gml`（4D3CE07A、1D9D7800 相同）
+```gml
+
+x = resor_to_x(0.05)
+```
+
+`rooms/rprojectinit/InstanceCreationCode_inst_71FB034A.gml`
+```gml
+x = resor_to_x(0.05)
+
+eventFunc = function() {
+	var _mus = objUIInputManager.get_input("music");
+	var _title = objUIInputManager.get_input("title");
+	var _ltype = objUIInputManager.get_input("leftType");
+	var _rtype = objUIInputManager.get_input("rightType");
+	var _bg = objUIInputManager.get_input("background");
+	var _chart = objUIInputManager.get_input("chart");
+	var _difficulty = objUIInputManager.get_input("difficulty");
+	if(_mus == "" && (_chart == "" || filename_ext(_chart) != ".dy")) {
+		announcement_error("need_a_music_file_error");
+		return;
+	}
+	
+	objManager.initVars = {
+		mus: _mus,
+		title: _title,
+		ltype: _ltype,
+		rtype: _rtype,
+		bg: _bg,
+		chart: _chart,
+		diff: _difficulty
+	};
+	room_goto(rMain);
+}
+```
+
+`rooms/rprojectinit/InstanceCreationCode_inst_9C053CC.gml`
+```gml
+
+eventFunc = function() {
+	room_goto(rStartPage);
+}
+```
+
+`rooms/rstartpage/InstanceCreationCode_inst_71FB034A_1.gml`
+```gml
+x = resor_to_x(0.05)
+
+eventFunc = function() {
+	room_goto(rProjectInit);
+}
+```
+
+`rooms/rstartpage/InstanceCreationCode_inst_6C7B47DC.gml`
+```gml
+x = resor_to_x(0.05)
+
+eventFunc = function() {
+	objManager.initWithProject = true;
+	room_goto(rMain);
+}
+```
+
+`rooms/rstartpage/InstanceCreationCode_inst_3FCB4889.gml`
+```gml
+x = resor_to_x(0.05)
+```
+
+`rooms/rstartpage/InstanceCreationCode_inst_6FCDFC63.gml`
+```gml
+x = resor_to_x(0.05)
+
+eventFunc = function() {
+	room_goto(rCredits);
+}
+```
+
+## 日后 GMRT 修复后如何还原
+
+1. 确认升级后的 GMRT 已修复 #15767（可以先用本文档「验证方法」里的思路跑一遍：
+   确认 wad.json 里重新出现 `InstanceCreationCode_*` 且运行时不再报错）。
+2. 整体还原本次变通（推荐，一次撤销所有相关改动）：
+
+   ```
+   git log --oneline -- notes/GMRT-15767-workaround.md   # 找到本次变通的提交
+   git revert <commit>                                   # 还原该提交
+   ```
+
+   如果不想用 revert（例如后续改动较多），也可以手动还原：
+   * 恢复 11 个 `InstanceCreationCode_*.gml` 文件（内容见上），放回
+     `rooms/<房间>/` 目录；
+   * 把三个房间 .yy 里对应实例的 `"hasCreationCode":false` 改回 `true`；
+   * 删掉实例上新增的 `xRatio` / `eventAction` Overridden Property；
+   * 删掉 objTextBox / objUIButton / objUIFileInput 的 `xRatio`、objUIButton 的
+     `eventAction` 变量定义；
+   * 删掉三个对象 Create 事件里带 `[GMRT-WA-15767]` 标记的代码块。
+   * 把 objPreInit Create 事件里带 `[GMRT-WA-15767]` 标记的 `_gmrtSvgAA` 开关去掉，
+     恢复成原来的 `if (draw_get_svg_aa_level() == 0) { ... }`。
+
+## 验证记录（2026-10-04）
+
+* `Build/build/out` 里 470 个脚本全部生成 `.gmir`，`Build/DyNode.wad.json` 里
+  `InstanceCreationCode` 出现次数为 0；
+* 用 GMRT 0.22.4 重新编译后直接运行 `Build/build/DyNode.exe`：
+  不再出现 `Failed to load script ... from wad`，窗口标题 `DyNode Modified` 正常出现并持续运行；
+* 运行时仍会看到一些非致命提示（`Failed to load Vulkan` 回退、
+  `GetCurrentTexture ... prior to calling Present`、`Grid index out of bounds`），
+  这些与本次改动无关，属于 GMRT 0.22.x 的行为，暂未处理。
+
+> 注意：如果 GameMaker IDE 一直开着这个工程，改动磁盘上的 .yy/.gml 后需要在 IDE 里
+> 重新加载工程（或关掉重开）再编译，否则 IDE 可能用旧的内存状态覆盖这些文件。
+
+## 验证方法
+
+用 GMRT 编译后检查 `Build/build/out` 与 `Build/DyNode.wad.json`：
+
+```powershell
+# 编译产物里不应再有 InstanceCreationCode 相关脚本（变通生效）
+Select-String -LiteralPath D:\DYNSource\Build\DyNode.wad.json -Pattern "InstanceCreationCode"
+# 运行时不应再出现 "Failed to load script ... from wad"
+```
+
