@@ -37,6 +37,41 @@ Unhandled exception: Error: Failed to load script
 `xRatio`、`eventAction` 的读取与分发写在对应对象的 Create 事件末尾
 （objCredits 继承 objTextBox，所以它的 Create 里 `event_inherited()` 就会执行到这段逻辑）。
 
+### 第三批：启动流程、白字、崩溃与校验错误
+
+修完上面两条后 GMRT 能进游戏了，但依次又暴露了四个问题，一并绕开：
+
+1. **卡在 Loading 界面** —— `texturegroup_load("texFonts", true)` 的预取在 GMRT 下不会完成：
+   状态从 loading(1) 掉回 unloaded(0)，永远等不到 `texturegroup_status_fetched`，
+   objPreInit Step 就迟迟不创建 objManager。现在 loaded/fetched 都算完成，并加 2 秒超时兜底。
+2. **字体全白块** —— texFonts 纹理组在 GMRT 下根本没加载（`sprite_get_texture(sprMsdfNotoSans, 0)`
+   只返回 1×1 占位贴图）。把 `DyNode.yyp` 里 texFonts 组的 `"loadType":"dynamicpages"` 改成
+   `"default"`（开机随其它组一起加载）后，组状态变 loaded/fetched，贴图恢复。
+3. **`window_command_close is not defined`（GMRT 直接崩）** —— 扩展 `window_command_hook.gml`
+   里几个命令码原本是以 `//#macro` 形式注释掉的指令；YYC 下未定义标识符静默当 0，
+   GMRT 会抛 ReferenceError。现在换成真正的 `#macro`（$F060 等），顺带恢复「关窗口前确认」行为。
+4. **运行时改 AA 触发 Dawn 校验错误**（YoYo #15328）—— `display_reset()` 会重建 swapchain，
+   GMRT 下会报 `GetCurrentTexture was not called on [Surface] ... prior to calling Present`，
+   并连带 `__shdCleanAntialias` 的 pipeline 报错（AA=4 分支顶点输出超限，每帧刷屏）。
+   新增宏 `APPLY_RUNTIME_DISPLAY_RESET`（`scripts/scrWindow/scrWindow.gml`，默认 false），
+   objPreInit / objManager / scrRecorder 里 4 处 display_reset 都由它控制；
+   GMRT 期间不启用 MSAA / vsync，校验错误归零。
+
+### 仍未彻底解决：GMRT 会把超过 2048 的贴图页缩小打包
+
+GMRT 0.22 的资源编译器固定按 2048 上限打包贴图页，而本项目的 Windows 贴图页设置是
+8192x8192（最后一次 YYC 构建产物 `texfonts_0.yytex` 头里确实是 8192x8192）。于是
+4096x8192 的 MSDF 图集（sprMsdfNotoSans）被缩成 1024x2048 —— MSDF 的 RGB 距离场一旦被
+重采样就会损坏，字形碎成一片。
+
+已做的缓解：Scribble 的 MSDF 载入器（`scripts/__scribble_font_add_msdf_from_project`）里加了一段
+（同样带 `[GMRT-WA-15767]`）把 GMRT 返回的 UV 按打包缩放系数换算回真实贴图范围，
+否则 UV 会偏大 4 倍（YYC 下 UV 正常，这段不生效）。
+
+图集被重采样本身脚本层修不了。彻底的本地做法（尚未实施）是把图集拆成 ≤2048 的若干块
+（例如 8 张 2048x2048 帧），让 GMRT 1:1 打包，再让 Scribble 按字形所在块取对应帧；
+或者等 YoYo 修 GMRT 的贴图页上限。
+
 ### 附带的第二个坑：GMRT 没有实现 SVG 抗锯齿函数
 
 修完上面这个问题后，GMRT 能加载 WAD 了，但启动时又报：
@@ -185,6 +220,12 @@ eventFunc = function() {
    * 删掉三个对象 Create 事件里带 `[GMRT-WA-15767]` 标记的代码块。
    * 把 objPreInit Create 事件里带 `[GMRT-WA-15767]` 标记的 `_gmrtSvgAA` 开关去掉，
      恢复成原来的 `if (draw_get_svg_aa_level() == 0) { ... }`。
+   * 扩展只改了 `extensions/window_command_hook/window_command_hook.gml`：把带
+     `[GMRT-WA-15767]` 标记的真 `#macro` 恢复成原来的 `//#macro` 注释。
+   * 删掉 `scripts/scrWindow/scrWindow.gml` 里的 `APPLY_RUNTIME_DISPLAY_RESET` 宏，
+     并把 objPreInit / objManager / scrRecorder 里 4 处 `display_reset` 的 `if` 包壳去掉。
+   * 把 `DyNode.yyp` 里 texFonts 组的 `"loadType"` 从 `"default"` 改回 `"dynamicpages"`。
+   * 删掉 `scripts/__scribble_font_add_msdf_from_project/` 里带 `[GMRT-WA-15767]` 的 UV 换算代码。
 
 ## 验证记录（2026-10-04）
 
@@ -192,9 +233,11 @@ eventFunc = function() {
   `InstanceCreationCode` 出现次数为 0；
 * 用 GMRT 0.22.4 重新编译后直接运行 `Build/build/DyNode.exe`：
   不再出现 `Failed to load script ... from wad`，窗口标题 `DyNode Modified` 正常出现并持续运行；
-* 运行时仍会看到一些非致命提示（`Failed to load Vulkan` 回退、
-  `GetCurrentTexture ... prior to calling Present`、`Grid index out of bounds`），
-  这些与本次改动无关，属于 GMRT 0.22.x 的行为，暂未处理。
+* 第三批改动后 `ReferenceError` / `is not defined` / `GetCurrentTexture` 均为 0；
+  只有 `Failed to load Vulkan` 回退（GMRT 用 D3D12 后端）和
+  `Grid index out of bounds` 这类提示；
+* 字体：texFonts 组能加载、UV 已按打包缩放换算正确，但图集被 GMRT 缩小 4 倍重采样过，
+  MSDF 字形仍然破碎（见上一节）。YYC 构建不受影响。
 
 > 注意：如果 GameMaker IDE 一直开着这个工程，改动磁盘上的 .yy/.gml 后需要在 IDE 里
 > 重新加载工程（或关掉重开）再编译，否则 IDE 可能用旧的内存状态覆盖这些文件。

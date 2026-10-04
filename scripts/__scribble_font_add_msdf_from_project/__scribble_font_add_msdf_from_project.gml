@@ -34,6 +34,22 @@ function __scribble_font_add_msdf_from_project(_sprite)
     _sprite_uvs[1] -= _texel_h*_sprite_uvs[5];
     _sprite_uvs[2] += _texel_w*_sprite_width*(1 - _sprite_uvs[6]);
     _sprite_uvs[3] += _texel_h*_sprite_height*(1 - _sprite_uvs[7]);
+
+    // [GMRT-WA-15767] GMRT 0.22 的贴图页上限是 2048，超过的图集会缩小打包（本项目的 MSDF 图集
+    // 4096x8192 被缩成 1024x2048），但 sprite_get_uvs() 仍按原始尺寸返回 UV（这里 right=2.0、
+    // bottom=4.0，且 texture_get_texel_width() 返回 0），于是 Scribble 算出的字形 UV 会偏大 4 倍，
+    // 文字就糊成一片噪点。用 uvs[6]/uvs[7]（GMRT 给出的打包缩放系数）把 UV 换算回真实贴图范围。
+    // GMS2/YYC 下 UV 正常（<=1），这段不会生效。
+    // 说明与还原步骤见 notes/GMRT-15767-workaround.md。
+    var _page_scale = 1;
+    if ((_sprite_uvs[2] > 1 || _sprite_uvs[3] > 1) && _sprite_uvs[6] > 0 && _sprite_uvs[7] > 0)
+    {
+        _page_scale = _sprite_uvs[6];
+        _sprite_uvs[0] *= _sprite_uvs[6];
+        _sprite_uvs[1] *= _sprite_uvs[7];
+        _sprite_uvs[2] *= _sprite_uvs[6];
+        _sprite_uvs[3] *= _sprite_uvs[7];
+    }
     
     var _font_directory = __scribble_get_font_directory();
     var _json_buffer = buffer_load(_font_directory + _name + ".json");
