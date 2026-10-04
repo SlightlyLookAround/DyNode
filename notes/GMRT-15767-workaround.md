@@ -90,6 +90,16 @@ Unhandled exception: Error: Failed to load script
    项目里同类模式（如 `music`）本来就带判断，只有这两处漏了。
    遇到其它同类报错时，按同样方式在调用前加判断即可。
 
+8. **GMRT 打不开路径里带非 ASCII 字符的文件**（背景图加载不出来）
+   工程目录形如 `C:\ALLFILES\DyNode\Works\[天SP] Efferverscence\`，`sprite_add()`
+   对该目录下的 JPEG/PNG 一律返回 -1。实测对照：同一个 JPEG 复制到纯 ASCII 路径后
+   能正常加载（1500x1500），而 PNG 放进含中文的目录后同样失败 —— 是路径编码问题，
+   不是图片格式问题。现在 `image_load()` 在首次 `sprite_add()` 失败后，会把文件复制到
+   `program_directory`／`temp_directory` 下的纯 ASCII 临时文件再加载一次，加载完即删；
+   YYC 下首次就成功，不会进入这段。工程里保存的仍然是原始路径。
+   注意：`video_load()`（DyCore/FFmpeg 那条路）还没有加同样的处理，遇到带中文路径的
+   视频可能同样打不开，按需照抄即可。
+
 上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
 
 * `split_msdf_atlas.py` —— 把 MSDF 图集重新打包成 ≤2044 的帧并改写

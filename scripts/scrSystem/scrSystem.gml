@@ -417,6 +417,29 @@ function image_load(_file) {
     
     var _spr = sprite_add(_file, 1, 0, 0, 0, 0);
 
+    // [GMRT-WA-15767] GMRT 的图像加载 API 打不开路径里带非 ASCII 字符的文件
+    // （例如中文/日文目录：PNG/JPEG 都只会返回 -1），这里先把文件拷到纯 ASCII 的临时路径再试一次。
+    // YYC 下首次就会成功，这段不会执行。文件用完立即删除。
+    if(!sprite_exists(_spr) || sprite_get_width(_spr) <= 0) {
+        var _ext = string_lower(filename_ext(_file));
+        var _candidates = [
+            program_directory + "dynode_tmp_image" + _ext,
+            temp_directory    + "dynode_tmp_image" + _ext,
+        ];
+        for(var _i = 0; _i < array_length(_candidates); _i++) {
+            var _tmp = _candidates[_i];
+            file_copy(_file, _tmp);
+            if(!file_exists(_tmp))
+                continue;
+            var _try = sprite_add(_tmp, 1, 0, 0, 0, 0);
+            file_delete(_tmp);
+            if(sprite_exists(_try) && sprite_get_width(_try) > 0) {
+                _spr = _try;
+                break;
+            }
+        }
+    }
+
     if(_spr < 0) {
         announcement_error("anno_graph_load_err");
         return;
