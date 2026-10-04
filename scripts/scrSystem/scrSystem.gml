@@ -42,6 +42,10 @@ function map_close(shuttingDown = false) {
 		part_type_destroy(partTypeNoteDL);
 		part_type_destroy(partTypeNoteDR);
 		part_type_destroy(partTypeHold);
+		// [GMRT-WA-15767] 销毁后立即重建粒子系统/类型/发射器：GMRT 会校验 emitter 的归属，
+		// 沿用已销毁的 partSysNote/partEmit（YYC 下能苟住）会抛
+		// "part_emitter_region: emitter must belong to given particle system"。
+		_partsys_recreate();
 		
 		if(bgImageSpr != -1)
 		    sprite_delete(bgImageSpr);

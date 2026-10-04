@@ -117,6 +117,15 @@ Unhandled exception: Error: Failed to load script
    实测 start/finish 都返回 0，不再抛异常。项目里其它用 `int64()` 生成 JSON 的地方
    （例如 Snitch 的 analytics 负载）在 GMRT 下也会被编成这种标记字符串，需要时同样处理。
 
+11. **加载工程后第一次击键就崩**（`part_emitter_region: emitter must belong to given particle system`）
+    `project_load()` 的流程是：先 `room_goto(rMain)`（此时 objMain 的 Create 已经建好粒子系统、
+    粒子类型和发射器），下一帧才延迟执行真正的加载，而加载一进来就 `map_reset()` ——
+    `map_reset()` 会销毁粒子系统/类型/发射器，销毁之后却没有重建。
+    YYC 下沿用已销毁的 id 还能"苟住"，GMRT 会严格校验 emitter 的归属，于是第一次击键的
+    `note_emit_particles()` 直接抛异常。现在把粒子系统/类型/发射器的创建收进 objMain 的
+    `_partsys_recreate()`，`map_reset()` 销毁后立即调用它重建。
+    实测（加载工程后手动设置 region + burst）：不再报错，`part_particles_count` 返回 1。
+
 上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
 
 * `split_msdf_atlas.py` —— 把 MSDF 图集重新打包成 ≤2044 的帧并改写

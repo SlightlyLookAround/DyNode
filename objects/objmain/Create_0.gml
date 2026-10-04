@@ -257,10 +257,7 @@ depth = 0;
 
 #region Particles Init
 
-    // PartSys
-    partSysNote = part_system_create();
     partAlphaMul = 0.75;
-    part_system_automatic_draw(partSysNote, false);
 
     // PartType
     
@@ -294,11 +291,6 @@ depth = 0;
             part_type_direction(_pt, _ang, _ang, 0, 0);
         }
         
-        partTypeNoteDL = part_type_create();
-        
-        partTypeNoteDR = part_type_create();
-        
-        
         // Hold
         function _parttype_hold_init(_pt, _scl = 1.0, _ang = 0.0) {
         	var _theme = theme_get();
@@ -316,22 +308,34 @@ depth = 0;
             part_type_blend(_pt, true);
             part_type_direction(_pt, 0, 360, 0, 0);
         }
-        partTypeHold = part_type_create();
-        
         function _partsys_init() {
         	_parttype_noted_init(partTypeNoteDL);
         	_parttype_noted_init(partTypeNoteDR, 1, 180);
         	_parttype_hold_init(partTypeHold);
         }
-        _partsys_init();
-        
+
     // Part Emitter
-    
-        partEmit = part_emitter_create(partSysNote);
+
         function _partemit_init(_pe, _x1, _y1, _x2, _y2) {
             part_emitter_region(partSysNote, _pe, _x1, _y1, _x2, _y2, 
                 ps_shape_line, ps_distr_linear);
         }
+
+        // [GMRT-WA-15767] 粒子系统/类型/发射器统一在这里创建：map_reset() 销毁它们之后必须重建，
+        // 否则 note_hit 里的 part_emitter_region() 会因为 emitter 不再属于该系统而抛异常
+        // （GMRT 会严格校验归属；YYC 不检查，所以以前销毁后沿用旧 id 也没报错）。
+        function _partsys_recreate() {
+            partSysNote = part_system_create();
+            part_system_automatic_draw(partSysNote, false);
+
+            partTypeNoteDL = part_type_create();
+            partTypeNoteDR = part_type_create();
+            partTypeHold   = part_type_create();
+            _partsys_init();
+
+            partEmit = part_emitter_create(partSysNote);
+        }
+        _partsys_recreate();
 
 #endregion
 
