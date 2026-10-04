@@ -82,6 +82,13 @@ Unhandled exception: Error: Failed to load script
    的 varying 打包进 15 个 vec4（`v_packed0..14` + `#define` 保持原变量名不变），
    数据本身不变，GMS2/YYC 同样适用。此后校验错误为 0，Clean 绘制的面板/线条恢复正常。
 
+上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
+
+* `split_msdf_atlas.py` —— 把 MSDF 图集重新打包成 ≤2044 的帧并改写
+  `datafiles/sprMsdfNotoSans.json`（字体更新后可以重跑）；
+* `pack_clean_shapes_varyings.py` —— 把 Clean Shapes 的 varying 打包成 vec4
+  （升级 Clean Shapes 之后可以重跑）。
+
 ### 附带的第二个坑：GMRT 没有实现 SVG 抗锯齿函数
 
 修完上面这个问题后，GMRT 能加载 WAD 了，但启动时又报：
