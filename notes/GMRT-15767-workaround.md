@@ -126,6 +126,15 @@ Unhandled exception: Error: Failed to load script
     `_partsys_recreate()`，`map_reset()` 销毁后立即调用它重建。
     实测（加载工程后手动设置 region + burst）：不再报错，`part_particles_count` 返回 1。
 
+    另外加了两道兜底，避免"系统/发射器已失效"时直接崩：
+    * `scrNote.note_emit_particles()`：调用 `part_particles_count()` 之前先
+      `part_system_exists()` 检查，失效就 `objMain._partsys_recreate()`；
+    * `objMain._partemit_init()`：设置 region 前检查系统与
+      `part_emitter_exists(partSysNote, _pe)`，缺系统就整体重建、缺发射器就补建一个。
+
+    实测（人为把粒子系统销毁后走正常 `note_emit_particles()`）：自动重建并成功发射，
+    不再抛异常。
+
 上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
 
 * `split_msdf_atlas.py` —— 把 MSDF 图集重新打包成 ≤2044 的帧并改写

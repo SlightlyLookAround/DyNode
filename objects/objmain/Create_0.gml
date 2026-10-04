@@ -317,6 +317,17 @@ depth = 0;
     // Part Emitter
 
         function _partemit_init(_pe, _x1, _y1, _x2, _y2) {
+            // [GMRT-WA-15767] 保险：若系统/发射器已经失效（例如某条销毁路径没走 _partsys_recreate），
+            // 先重建再设置 region —— GMRT 会严格校验 emitter 归属，直接调用会抛
+            // "part_emitter_region: emitter must belong to given particle system"。
+            if(!part_system_exists(partSysNote)) {
+                _partsys_recreate();
+                _pe = partEmit;
+            }
+            else if(!part_emitter_exists(partSysNote, _pe)) {
+                partEmit = part_emitter_create(partSysNote);
+                _pe = partEmit;
+            }
             part_emitter_region(partSysNote, _pe, _x1, _y1, _x2, _y2, 
                 ps_shape_line, ps_distr_linear);
         }

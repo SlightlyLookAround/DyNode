@@ -315,6 +315,11 @@ function note_emit_particles(number, note, parttype) {
 	if(global.particleEffects != 1)
 		return;
 
+	// [GMRT-WA-15767] 系统被销毁时（例如加载工程后沿用了旧引用）先重建，
+	// 否则下面的 part_particles_count() 会直接抛错。见 notes/GMRT-15767-workaround.md 第 11 条。
+	if(!part_system_exists(objMain.partSysNote))
+		objMain._partsys_recreate();
+
 	if(part_particles_count(objMain.partSysNote) > MAX_PARTICLE_COUNT)
 		return;
 
