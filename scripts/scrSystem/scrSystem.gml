@@ -10,6 +10,18 @@
 
 #region MAP FUNCTIONS
 
+/// [GMRT-WA-15767] 路径里是否含非 ASCII 字符。
+/// GMRT 的文件 API 会把这些路径按系统 ANSI 代码页转换：能转的字符会建出乱码目录，
+/// 转不了的字符会直接抛 "No mapping for the Unicode character exists in the target
+/// multi-byte code page"（GML 的 try/catch 接不住，进程直接结束）。
+function path_has_non_ascii(_p) {
+	for(var _i = 1; _i <= string_length(_p); _i++) {
+		if(ord(string_char_at(_p, _i)) > 127)
+			return true;
+	}
+	return false;
+}
+
 function map_close(shuttingDown = false) {
 	DyCore_project_save_invalidate();
 	diff_storage_init();
@@ -398,6 +410,15 @@ function background_reset() {
 }
 
 function video_load(_file) {
+	// [GMRT-WA-15767] 非 ASCII 路径下 GMRT 的文件 API 可能直接崩（见 path_has_non_ascii 注释）。
+	// 默认仍然尝试加载；如果某个工程一打开就闪退，可以在控制台执行
+	//   global.allowUnicodeMediaLoad = false
+	// 之后再打开它，就会跳过背景图/视频加载。
+	if(path_has_non_ascii(_file) && !global.allowUnicodeMediaLoad) {
+		show_debug_message("[GMRT-WA-15767] Skip video load for non-ASCII path: " + _file);
+		return;
+	}
+
 	if(!file_exists(_file)) {
 	        announcement_error("video_playback_file_not_exists"+_file);
         return;
@@ -414,6 +435,12 @@ function video_load(_file) {
 }
 
 function image_load(_file) {
+	// [GMRT-WA-15767] 同上：非 ASCII 路径 + global.allowUnicodeMediaLoad == false 时跳过。
+	if(path_has_non_ascii(_file) && !global.allowUnicodeMediaLoad) {
+		show_debug_message("[GMRT-WA-15767] Skip image load for non-ASCII path: " + _file);
+		return;
+	}
+
 	if(!file_exists(_file)) {
         announcement_error(i18n_get("anno_graph_not_exists")+_file);
         return;
@@ -1013,6 +1040,14 @@ function project_backup(project_path) {
 
 	var proDir = filename_dir(project_path);
 	var bckDir = proDir + "\\backups\\";
+
+	// [GMRT-WA-15767] 非 ASCII 路径下 directory_exists()/directory_create()/file_copy()
+	// 会按 ANSI 代码页转换路径：轻则建出乱码目录（例如 "[澶 鍧犲叆澶╃┖"），
+	// 重则直接抛未捕获异常把游戏打崩。这里直接跳过备份（工程本身仍由 DyCore 正常保存）。
+	if(path_has_non_ascii(proDir)) {
+		show_debug_message("[GMRT-WA-15767] Skip project backup: non-ASCII project path.");
+		return;
+	}
 
 	if(!directory_exists(bckDir))
 		directory_create(bckDir);

@@ -7,6 +7,10 @@ if (APPLY_RUNTIME_DISPLAY_RESET)
 // Prefetch the large dynamic font texture group into vram.
 texturegroup_load("texFonts", true);
 
+// [GMRT-WA-15767] 非 ASCII 路径的媒体加载开关（说明见 scripts/scrSystem 的 path_has_non_ascii）。
+// 默认 true = 照常尝试；若某个工程一打开就闪退，可在控制台执行
+// global.allowUnicodeMediaLoad = false 后再打开它，就会跳过背景/视频加载。
+global.allowUnicodeMediaLoad = true;
 
 typist = scribble_typist().in(1, 10);
 timer = 0;

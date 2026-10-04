@@ -135,6 +135,26 @@ Unhandled exception: Error: Failed to load script
     实测（人为把粒子系统销毁后走正常 `note_emit_particles()`）：自动重建并成功发射，
     不再抛异常。
 
+12. **中文/日文路径的工程：乱码目录 + 打开即闪退**
+    GMRT 的文件 API 会把路径按**系统 ANSI 代码页**转换，于是：
+    * 能转换的字符 → 建出**乱码目录**。实测 `directory_create("D:/…/测试目录A/")` 实际建出
+      `娴嬭瘯鐩綍A`（"测试目录A" 的 UTF-8 字节被当成 GBK），`directory_exists()` 之后又找不到它。
+      玩家工程里的 `backups/` 也是这样被建成了 `[澶 鍧犲叆澶╃┖` 之类的影子目录。
+    * 无法转换的字符 → 直接抛 `No mapping for the Unicode character exists in the target
+      multi-byte code page`，**而且 GML 的 try/catch 接不住，进程立刻结束**。
+      实测 `[天] 坠入天空`（字都在代码页里）的 `file_exists`/`file_copy` 正常，而
+      `[地] 浸春芜 [For DAB #5]`（含代码页表示不了的字符）连 `file_exists`
+      和 `sprite_add` 都会当场崩溃。
+
+    处理：
+    * `scrSystem.path_has_non_ascii()`：纯字符串检查（不碰文件 API，安全）；
+    * `project_backup()`：工程目录含非 ASCII 字符时**跳过备份**（工程保存本身走 DyCore，不受影响），
+      这样既不会再产生乱码目录，也避免自动备份把游戏打崩；
+    * `image_load()` / `video_load()`：非 ASCII 路径默认仍照常尝试（部分中文目录能正常读），
+      但新增开关 —— 若某个工程一打开就闪退，在控制台执行
+      `global.allowUnicodeMediaLoad = false` 后再打开它，就会跳过背景图/视频加载；
+    * 建议：这类工程暂时放在**纯英文路径**下最稳；GMRT 修好文件 API 的编码问题后即可还原。
+
 上面两处批量改动都是脚本生成的，脚本留在 `notes/gmrt-workaround-tools/`：
 
 * `split_msdf_atlas.py` —— 把 MSDF 图集重新打包成 ≤2044 的帧并改写
